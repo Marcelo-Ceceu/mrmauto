@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { FadeIn, FadeInStagger } from "./ui/fade-in";
+import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -21,6 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const { user } = useAuth();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -89,12 +91,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="p-4 border-t border-sidebar-border/50 bg-sidebar/50">
           <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-bold text-sidebar-accent-foreground">
-              A
+            <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-bold text-sidebar-accent-foreground uppercase">
+              {user?.email?.charAt(0) || "U"}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate">Admin</p>
-              <p className="text-[10px] text-sidebar-foreground/50 truncate">admin@mmr.com</p>
+              <p className="text-sm font-medium truncate">{user?.email ? user.email.split("@")[0] : "Usuário"}</p>
+              <p className="text-[10px] text-sidebar-foreground/50 truncate">{user?.email || "carregando..."}</p>
             </div>
           </div>
           <Button

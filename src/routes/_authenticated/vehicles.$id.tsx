@@ -53,7 +53,7 @@ const expenseCategories = [
 ];
 
 async function fetchVehicle(id: string) {
-  const [v, e, n] = await Promise.all([
+  const [v, e, n, d] = await Promise.all([
     supabase.from("vehicles").select("*").eq("id", id).single(),
     supabase
       .from("vehicle_expenses")
@@ -74,7 +74,8 @@ async function fetchVehicle(id: string) {
   if (v.error) throw v.error;
   if (e.error) throw e.error;
   if (n.error) throw n.error;
-  const docs = arguments[0]?.[3]?.data ?? [];
+  if (d?.error) throw d.error;
+  const docs = d?.data ?? [];
 
   return {
     vehicle: v.data,
@@ -728,152 +729,154 @@ function VehicleDetail() {
         </Card>
       )}
 
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-lg font-semibold border-l-4 border-blue-500 pl-3">
-            Documentos e Anexos
-          </h2>
-          <div>
-            <Label htmlFor="doc-upload" className="cursor-pointer">
-              <div className="flex items-center gap-2 bg-blue-500/10 text-blue-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-500/20 transition-colors">
-                {uploadingDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Anexar Arquivo
-              </div>
-            </Label>
-            <input 
-              id="doc-upload" 
-              type="file" 
-              className="hidden" 
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-              onChange={handleFileUpload}
-              disabled={uploadingDoc}
-            />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-lg font-semibold border-l-4 border-gold pl-3">
+              Despesas relacionadas
+            </h2>
+            <span className="text-sm text-muted-foreground">
+              Total: <span className="font-bold text-foreground">{brl(totalExpenses)}</span>
+            </span>
           </div>
-        </div>
-        
-        {data.documents.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Nenhum documento anexado.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {data.documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between p-3 border rounded-xl bg-muted/20">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="h-10 w-10 shrink-0 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-600">
-                    <FileText className="h-5 w-5" />
+          <form
+            onSubmit={addExpense}
+            className="grid gap-3 sm:grid-cols-5 mb-4 p-3 bg-muted/40 rounded-lg"
+          >
+            <div className="sm:col-span-1">
+              <Label className="text-xs">Categoria</Label>
+              <Select
+                value={exp.category}
+                onValueChange={(v) => setExp((s) => ({ ...s, category: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {expenseCategories.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs">Descrição</Label>
+              <Input
+                value={exp.description}
+                onChange={(e) => setExp((s) => ({ ...s, description: e.target.value }))}
+                placeholder="Ex: Troca de óleo"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Valor</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={exp.amount}
+                onChange={(e) => setExp((s) => ({ ...s, amount: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Data</Label>
+              <Input
+                type="date"
+                value={exp.expense_date}
+                onChange={(e) => setExp((s) => ({ ...s, expense_date: e.target.value }))}
+              />
+            </div>
+            <Button type="submit" className="sm:col-span-5 bg-gradient-primary">
+              <Plus className="h-4 w-4 mr-1" /> Adicionar despesa
+            </Button>
+          </form>
+          {data.expenses.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nenhuma despesa registrada.
+            </p>
+          ) : (
+            <div className="divide-y">
+              {data.expenses.map((e) => (
+                <div key={e.id} className="flex items-center justify-between py-3">
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">{e.description}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {expenseCategories.find((c) => c.value === e.category)?.label} ·{" "}
+                      {fmtDate(e.expense_date)}
+                      {e.user_id && <UserBadge userId={e.user_id} label="Por" />}
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate" title={doc.name}>{doc.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{fmtDate(doc.created_at)}</p>
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium">{brl(e.amount)}</span>
+                    <button
+                      onClick={() => deleteExpense(e.id)}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0 ml-2">
-                  <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </a>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => deleteDocument(doc.id, doc.url)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+              ))}
+            </div>
+          )}
+        </Card>
 
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-lg font-semibold border-l-4 border-gold pl-3">
-            Despesas relacionadas
-          </h2>
-          <span className="text-sm text-muted-foreground">
-            Total: <span className="font-bold text-foreground">{brl(totalExpenses)}</span>
-          </span>
-        </div>
-        <form
-          onSubmit={addExpense}
-          className="grid gap-3 sm:grid-cols-5 mb-4 p-3 bg-muted/40 rounded-lg"
-        >
-          <div className="sm:col-span-1">
-            <Label className="text-xs">Categoria</Label>
-            <Select
-              value={exp.category}
-              onValueChange={(v) => setExp((s) => ({ ...s, category: v }))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {expenseCategories.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-lg font-semibold border-l-4 border-blue-500 pl-3">
+              Documentos e Anexos
+            </h2>
+            <div>
+              <Label htmlFor="doc-upload" className="cursor-pointer">
+                <div className="flex items-center gap-2 bg-blue-500/10 text-blue-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-500/20 transition-colors">
+                  {uploadingDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  Anexar Arquivo
+                </div>
+              </Label>
+              <input 
+                id="doc-upload" 
+                type="file" 
+                className="hidden" 
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                onChange={handleFileUpload}
+                disabled={uploadingDoc}
+              />
+            </div>
           </div>
-          <div className="sm:col-span-2">
-            <Label className="text-xs">Descrição</Label>
-            <Input
-              value={exp.description}
-              onChange={(e) => setExp((s) => ({ ...s, description: e.target.value }))}
-              placeholder="Ex: Troca de óleo"
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Valor</Label>
-            <Input
-              type="number"
-              step="0.01"
-              value={exp.amount}
-              onChange={(e) => setExp((s) => ({ ...s, amount: e.target.value }))}
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Data</Label>
-            <Input
-              type="date"
-              value={exp.expense_date}
-              onChange={(e) => setExp((s) => ({ ...s, expense_date: e.target.value }))}
-            />
-          </div>
-          <Button type="submit" className="sm:col-span-5 bg-gradient-primary">
-            <Plus className="h-4 w-4 mr-1" /> Adicionar despesa
-          </Button>
-        </form>
-        {data.expenses.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Nenhuma despesa registrada.
-          </p>
-        ) : (
-          <div className="divide-y">
-            {data.expenses.map((e) => (
-              <div key={e.id} className="flex items-center justify-between py-3">
-                <div className="flex-1">
-                  <div className="font-medium text-sm">{e.description}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {expenseCategories.find((c) => c.value === e.category)?.label} ·{" "}
-                    {fmtDate(e.expense_date)}
-                    {e.user_id && <UserBadge userId={e.user_id} label="Por" />}
+          
+          {data.documents.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nenhum documento anexado.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {data.documents.map((doc) => (
+                <div key={doc.id} className="flex items-center justify-between p-3 border rounded-xl bg-muted/20">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="h-10 w-10 shrink-0 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-600">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate" title={doc.name}>{doc.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{fmtDate(doc.created_at)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </a>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => deleteDocument(doc.id, doc.url)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-medium">{brl(e.amount)}</span>
-                  <button
-                    onClick={() => deleteExpense(e.id)}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
 
       <Card className="p-6 lg:p-8">
         <VehicleForm

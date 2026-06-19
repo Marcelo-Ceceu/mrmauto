@@ -1,0 +1,1 @@
+ALTER TABLE public.negotiations ADD CONSTRAINT negotiations_vehicle_id_key UNIQUE (vehicle_id);

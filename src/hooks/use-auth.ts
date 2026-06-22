@@ -14,7 +14,7 @@ export function useAuth() {
         setIsAdmin(true);
         return;
       }
-      
+
       const { data } = await supabase.from("profiles").select("is_admin").eq("id", userId).single();
       setIsAdmin(data?.is_admin ?? false);
     };

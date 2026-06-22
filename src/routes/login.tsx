@@ -124,7 +124,7 @@ function LoginPage() {
             >
               {loading ? "Entrando..." : "Entrar"}
             </Button>
-            
+
             <Button
               type="button"
               variant="outline"
@@ -135,14 +135,16 @@ function LoginPage() {
                   email,
                   password,
                   options: {
-                    data: { full_name: "Admin", is_admin: true }
-                  }
+                    data: { full_name: "Admin", is_admin: true },
+                  },
                 });
                 setLoading(false);
                 if (error) {
                   toast.error("Erro ao criar: " + error.message);
                 } else {
-                  toast.success("Conta de teste criada! Se o email não precisar de verificação, você já pode fazer login.");
+                  toast.success(
+                    "Conta de teste criada! Se o email não precisar de verificação, você já pode fazer login.",
+                  );
                 }
               }}
               disabled={loading || !email || !password}

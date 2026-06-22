@@ -23,7 +23,13 @@ import {
 } from "lucide-react";
 import { brl } from "@/lib/format";
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useFavorites } from "@/hooks/useFavorites";
 import { Helmet } from "react-helmet";
@@ -75,7 +81,7 @@ function PublicVehicleDetail() {
   const vehicle = Route.useLoaderData();
   const { isFavorite, toggleFavorite } = useFavorites();
   const favorited = isFavorite(id);
-  
+
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -127,21 +133,21 @@ function PublicVehicleDetail() {
   const submitLeadAndRedirect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vehicle || !leadForm.name || !leadForm.phone) return;
-    
+
     setIsSubmittingLead(true);
-    
+
     // Save lead to Supabase
     try {
       await supabase.from("leads").insert({
         name: leadForm.name,
         phone: leadForm.phone,
         vehicle_id: id,
-        status: "new"
+        status: "new",
       });
     } catch (err) {
       console.error("Error saving lead:", err);
     }
-    
+
     setIsSubmittingLead(false);
     setIsLeadModalOpen(false);
 
@@ -194,9 +200,9 @@ function PublicVehicleDetail() {
                 onClick={() => toggleFavorite(id)}
                 className={cn(
                   "p-2 rounded-xl transition-all border",
-                  favorited 
-                    ? "bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20" 
-                    : "bg-card border-white/5 hover:bg-white/5 text-muted-foreground hover:text-foreground"
+                  favorited
+                    ? "bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20"
+                    : "bg-card border-white/5 hover:bg-white/5 text-muted-foreground hover:text-foreground",
                 )}
                 title={favorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
               >
@@ -324,7 +330,8 @@ function PublicVehicleDetail() {
                 <DialogHeader>
                   <DialogTitle>Falar com Corretor</DialogTitle>
                   <DialogDescription>
-                    Por favor, informe seu nome e telefone para que possamos oferecer um atendimento personalizado.
+                    Por favor, informe seu nome e telefone para que possamos oferecer um atendimento
+                    personalizado.
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={submitLeadAndRedirect} className="space-y-4 mt-4">
@@ -335,7 +342,7 @@ function PublicVehicleDetail() {
                       placeholder="Ex: João Silva"
                       required
                       value={leadForm.name}
-                      onChange={(e) => setLeadForm(prev => ({ ...prev, name: e.target.value }))}
+                      onChange={(e) => setLeadForm((prev) => ({ ...prev, name: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
@@ -345,10 +352,14 @@ function PublicVehicleDetail() {
                       placeholder="(31) 99999-9999"
                       required
                       value={leadForm.phone}
-                      onChange={(e) => setLeadForm(prev => ({ ...prev, phone: e.target.value }))}
+                      onChange={(e) => setLeadForm((prev) => ({ ...prev, phone: e.target.value }))}
                     />
                   </div>
-                  <Button type="submit" className="w-full bg-gradient-primary" disabled={isSubmittingLead}>
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-primary"
+                    disabled={isSubmittingLead}
+                  >
                     {isSubmittingLead ? "Redirecionando..." : "Iniciar Conversa no WhatsApp"}
                   </Button>
                 </form>

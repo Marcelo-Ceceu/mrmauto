@@ -328,30 +328,37 @@ function Dashboard() {
                 <h3 className="text-sm font-semibold mb-3">Próximos Vencimentos / Atrasados</h3>
                 <div className="space-y-2 max-h-60 overflow-auto pr-2">
                   {pendingInstallments.slice(0, 10).map((inst) => {
-                    const neg = negotiations.find(n => n.id === inst.negotiation_id);
+                    const neg = negotiations.find((n) => n.id === inst.negotiation_id);
                     if (!neg || !neg.buyer_phone) return null;
-                    
-                    const isOverdue = new Date(inst.due_date) < new Date(new Date().setHours(0,0,0,0));
-                    const text = `Olá ${neg.buyer_name?.split(' ')[0]}, tudo bem? Somos da MRM Automóveis. Passando para lembrar sobre a parcela do seu veículo no valor de ${brl(inst.amount)} com vencimento em ${fmtDate(inst.due_date)}.\nQualquer dúvida estamos à disposição!`;
-                    
+
+                    const isOverdue =
+                      new Date(inst.due_date) < new Date(new Date().setHours(0, 0, 0, 0));
+                    const text = `Olá ${neg.buyer_name?.split(" ")[0]}, tudo bem? Somos da MRM Automóveis. Passando para lembrar sobre a parcela do seu veículo no valor de ${brl(inst.amount)} com vencimento em ${fmtDate(inst.due_date)}.\nQualquer dúvida estamos à disposição!`;
+
                     return (
-                      <div key={inst.id} className="flex items-center justify-between p-3 rounded-lg bg-white/50 border shadow-sm">
+                      <div
+                        key={inst.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-white/50 border shadow-sm"
+                      >
                         <div>
                           <div className="font-medium text-sm">{neg.buyer_name}</div>
                           <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
                             <span className={isOverdue ? "text-destructive font-semibold" : ""}>
                               {fmtDate(inst.due_date)} {isOverdue && "(Atrasado)"}
                             </span>
-                            • 
-                            <span className="font-medium">{brl(inst.amount)}</span>
+                            •<span className="font-medium">{brl(inst.amount)}</span>
                           </div>
                         </div>
-                        <a 
+                        <a
                           href={`https://wa.me/${neg.buyer_phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          <Button size="sm" variant="outline" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8 gap-1.5 px-2.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8 gap-1.5 px-2.5"
+                          >
                             <MessageSquare className="h-3.5 w-3.5" />
                             Cobrar
                           </Button>

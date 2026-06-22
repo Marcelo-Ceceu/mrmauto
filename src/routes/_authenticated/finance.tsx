@@ -13,7 +13,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { brl, fmtDate } from "@/lib/format";
 import { useMemo } from "react";
 import {
@@ -242,8 +247,12 @@ function Finance() {
     }
   }
 
-  const entradasRealizadas = rows.filter((r) => r.type === "in" && r.sub !== "Previsão Parcelada").reduce((a, r) => a + r.amount, 0);
-  const entradasPrevistas = rows.filter((r) => r.type === "in" && r.sub === "Previsão Parcelada").reduce((a, r) => a + r.amount, 0);
+  const entradasRealizadas = rows
+    .filter((r) => r.type === "in" && r.sub !== "Previsão Parcelada")
+    .reduce((a, r) => a + r.amount, 0);
+  const entradasPrevistas = rows
+    .filter((r) => r.type === "in" && r.sub === "Previsão Parcelada")
+    .reduce((a, r) => a + r.amount, 0);
   const saidas = rows.filter((r) => r.type === "out").reduce((a, r) => a + r.amount, 0);
   const saldoAtual = entradasRealizadas - saidas;
 
@@ -292,7 +301,9 @@ function Finance() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Entradas Realizadas</p>
-              <p className="font-display text-2xl font-bold mt-1 text-success">{brl(entradasRealizadas)}</p>
+              <p className="font-display text-2xl font-bold mt-1 text-success">
+                {brl(entradasRealizadas)}
+              </p>
             </div>
             <div className="h-10 w-10 rounded-lg bg-success/15 text-success flex items-center justify-center">
               <TrendingUp className="h-5 w-5" />
@@ -303,7 +314,9 @@ function Finance() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground">A Receber</p>
-              <p className="font-display text-2xl font-bold mt-1 text-gold">{brl(entradasPrevistas)}</p>
+              <p className="font-display text-2xl font-bold mt-1 text-gold">
+                {brl(entradasPrevistas)}
+              </p>
             </div>
             <div className="h-10 w-10 rounded-lg bg-gold/15 text-gold flex items-center justify-center">
               <TrendingUp className="h-5 w-5" />
@@ -408,40 +421,57 @@ function Finance() {
             <TabsContent key={t} value={t}>
               {isLoading ? (
                 <p className="text-muted-foreground text-sm py-4">Carregando...</p>
-              ) : groupedRows.filter((g) => t === "all" || g.items.some(i => i.type === t)).length === 0 ? (
+              ) : groupedRows.filter((g) => t === "all" || g.items.some((i) => i.type === t))
+                  .length === 0 ? (
                 <p className="text-muted-foreground text-sm py-8 text-center">Nenhum lançamento.</p>
               ) : (
                 <Accordion type="single" collapsible className="w-full">
                   {groupedRows
-                    .filter((g) => t === "all" || g.items.some(i => i.type === t))
+                    .filter((g) => t === "all" || g.items.some((i) => i.type === t))
                     .map((g, idx) => (
-                      <AccordionItem value={`item-${idx}`} key={idx} className="border-b border-white/5">
+                      <AccordionItem
+                        value={`item-${idx}`}
+                        key={idx}
+                        className="border-b border-white/5"
+                      >
                         <AccordionTrigger className="hover:no-underline py-4">
                           <div className="flex items-center justify-between w-full pr-4">
                             <div className="flex flex-col items-start text-left gap-1">
                               <span className="font-medium text-sm text-foreground">{g.label}</span>
                               <span className="text-xs text-muted-foreground">
-                                {g.items.length} {g.items.length === 1 ? "registro" : "registros"} · {fmtDate(g.date)}
+                                {g.items.length} {g.items.length === 1 ? "registro" : "registros"} ·{" "}
+                                {fmtDate(g.date)}
                               </span>
                             </div>
-                            <span className={`font-display font-bold ${g.total >= 0 ? "text-success" : "text-destructive"}`}>
+                            <span
+                              className={`font-display font-bold ${g.total >= 0 ? "text-success" : "text-destructive"}`}
+                            >
                               {g.total >= 0 ? "+" : "−"} {brl(Math.abs(g.total))}
                             </span>
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="pl-4 py-2 space-y-3 border-l-2 border-muted/50 ml-2">
-                            {g.items.filter(r => t === "all" || r.type === t).map((r, i) => (
-                              <div key={i} className="flex items-center justify-between bg-muted/20 p-2 rounded-md">
-                                <div>
-                                  <div className="text-sm font-medium">{r.sub}</div>
-                                  <div className="text-[10px] text-muted-foreground mt-0.5">{fmtDate(r.date)}</div>
+                            {g.items
+                              .filter((r) => t === "all" || r.type === t)
+                              .map((r, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center justify-between bg-muted/20 p-2 rounded-md"
+                                >
+                                  <div>
+                                    <div className="text-sm font-medium">{r.sub}</div>
+                                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                                      {fmtDate(r.date)}
+                                    </div>
+                                  </div>
+                                  <span
+                                    className={`font-medium text-sm ${r.type === "in" ? "text-success" : "text-destructive"}`}
+                                  >
+                                    {r.type === "in" ? "+" : "−"} {brl(r.amount)}
+                                  </span>
                                 </div>
-                                <span className={`font-medium text-sm ${r.type === "in" ? "text-success" : "text-destructive"}`}>
-                                  {r.type === "in" ? "+" : "−"} {brl(r.amount)}
-                                </span>
-                              </div>
-                            ))}
+                              ))}
                           </div>
                         </AccordionContent>
                       </AccordionItem>

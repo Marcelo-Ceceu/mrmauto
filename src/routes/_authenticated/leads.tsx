@@ -2,11 +2,30 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MessageSquare, Phone, Clock, Car, Plus } from "lucide-react";
@@ -29,10 +48,12 @@ function LeadsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leads")
-        .select(`
+        .select(
+          `
           *,
           vehicles ( brand, model, year )
-        `)
+        `,
+        )
         .order("created_at", { ascending: false })
         .limit(200);
 
@@ -54,14 +75,14 @@ function LeadsPage() {
   const handleManualLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualLead.name || !manualLead.phone) return;
-    
+
     setIsSubmitting(true);
     try {
       const name = manualLead.notes ? `${manualLead.name} (${manualLead.notes})` : manualLead.name;
       await supabase.from("leads").insert({
         name,
         phone: manualLead.phone,
-        status: "new"
+        status: "new",
       });
       setIsManualLeadOpen(false);
       setManualLead({ name: "", phone: "", notes: "" });
@@ -82,13 +103,36 @@ function LeadsPage() {
 
   const getStatusBadge = (status: string | null) => {
     switch (status) {
-      case "new": return <Badge variant="default" className="bg-blue-500">Novo</Badge>;
-      case "contacted": return <Badge variant="secondary">Contatado</Badge>;
-      case "negotiating": return <Badge variant="default" className="bg-amber-500">Em Negociação</Badge>;
-      case "test_drive": return <Badge variant="default" className="bg-purple-500">Test Drive</Badge>;
-      case "closed": return <Badge variant="default" className="bg-emerald-500">Vendido</Badge>;
-      case "lost": return <Badge variant="destructive">Perdido</Badge>;
-      default: return <Badge variant="outline">{status}</Badge>;
+      case "new":
+        return (
+          <Badge variant="default" className="bg-blue-500">
+            Novo
+          </Badge>
+        );
+      case "contacted":
+        return <Badge variant="secondary">Contatado</Badge>;
+      case "negotiating":
+        return (
+          <Badge variant="default" className="bg-amber-500">
+            Em Negociação
+          </Badge>
+        );
+      case "test_drive":
+        return (
+          <Badge variant="default" className="bg-purple-500">
+            Test Drive
+          </Badge>
+        );
+      case "closed":
+        return (
+          <Badge variant="default" className="bg-emerald-500">
+            Vendido
+          </Badge>
+        );
+      case "lost":
+        return <Badge variant="destructive">Perdido</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
   };
 
@@ -118,7 +162,7 @@ function LeadsPage() {
                   required
                   placeholder="Ex: João da Silva"
                   value={manualLead.name}
-                  onChange={(e) => setManualLead(p => ({ ...p, name: e.target.value }))}
+                  onChange={(e) => setManualLead((p) => ({ ...p, name: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
@@ -127,7 +171,7 @@ function LeadsPage() {
                   required
                   placeholder="(31) 99999-9999"
                   value={manualLead.phone}
-                  onChange={(e) => setManualLead(p => ({ ...p, phone: e.target.value }))}
+                  onChange={(e) => setManualLead((p) => ({ ...p, phone: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
@@ -135,7 +179,7 @@ function LeadsPage() {
                 <Input
                   placeholder="Ex: Honda Civic 2020"
                   value={manualLead.notes}
-                  onChange={(e) => setManualLead(p => ({ ...p, notes: e.target.value }))}
+                  onChange={(e) => setManualLead((p) => ({ ...p, notes: e.target.value }))}
                 />
               </div>
               <Button type="submit" disabled={isSubmitting} className="w-full bg-gradient-primary">
@@ -155,7 +199,7 @@ function LeadsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-blue-500">
-              {leads?.filter(l => l.status === "new").length || 0}
+              {leads?.filter((l) => l.status === "new").length || 0}
             </div>
           </CardContent>
         </Card>
@@ -167,7 +211,7 @@ function LeadsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-amber-500">
-              {leads?.filter(l => l.status === "negotiating").length || 0}
+              {leads?.filter((l) => l.status === "negotiating").length || 0}
             </div>
           </CardContent>
         </Card>
@@ -179,7 +223,7 @@ function LeadsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-emerald-500">
-              {leads?.filter(l => l.status === "contacted").length || 0}
+              {leads?.filter((l) => l.status === "contacted").length || 0}
             </div>
           </CardContent>
         </Card>
@@ -191,7 +235,7 @@ function LeadsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-purple-500">
-              {leads?.filter(l => l.status === "test_drive").length || 0}
+              {leads?.filter((l) => l.status === "test_drive").length || 0}
             </div>
           </CardContent>
         </Card>
@@ -230,16 +274,22 @@ function LeadsPage() {
                       {lead.vehicles ? (
                         <div className="flex items-center gap-2">
                           <Car className="h-4 w-4 text-muted-foreground" />
-                          <span>{lead.vehicles.brand} {lead.vehicles.model} ({lead.vehicles.year})</span>
+                          <span>
+                            {lead.vehicles.brand} {lead.vehicles.model} ({lead.vehicles.year})
+                          </span>
                         </div>
                       ) : (
-                        <span className="text-muted-foreground italic">Geral / Não especificado</span>
+                        <span className="text-muted-foreground italic">
+                          Geral / Não especificado
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>
                       <Select
                         defaultValue={lead.status || "new"}
-                        onValueChange={(val) => updateStatusMutation.mutate({ id: lead.id, status: val })}
+                        onValueChange={(val) =>
+                          updateStatusMutation.mutate({ id: lead.id, status: val })
+                        }
                       >
                         <SelectTrigger className="w-[140px] h-8">
                           <SelectValue>{getStatusBadge(lead.status)}</SelectValue>
@@ -255,12 +305,16 @@ function LeadsPage() {
                       </Select>
                     </TableCell>
                     <TableCell className="text-right">
-                      <a 
-                        href={`https://wa.me/${lead.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${lead.name}, sou da MRM Automóveis. Vi que você teve interesse no ${lead.vehicles?.model || 'nosso estoque'}...`)}`}
+                      <a
+                        href={`https://wa.me/${lead.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${lead.name}, sou da MRM Automóveis. Vi que você teve interesse no ${lead.vehicles?.model || "nosso estoque"}...`)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        <Button size="sm" variant="outline" className="text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50"
+                        >
                           <MessageSquare className="h-4 w-4 mr-2" /> Falar
                         </Button>
                       </a>

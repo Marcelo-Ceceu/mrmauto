@@ -1,5 +1,31 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { Upload, X, Calculator, Search as SearchIcon, Percent, DollarSign } from "lucide-react";
+import {
+  Upload,
+  X,
+  Calculator,
+  Search as SearchIcon,
+  Percent,
+  DollarSign,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import imageCompression from "browser-image-compression";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
+import { FipeModal } from "./FipeModal";
 import {
   Select,
   SelectContent,
@@ -158,6 +185,24 @@ export function VehicleForm({
   const update = <K extends keyof VehicleFormState>(k: K, v: VehicleFormState[K]) =>
     setF((s) => ({ ...s, [k]: v }));
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = f.photos.indexOf(active.id as string);
+      const newIndex = f.photos.indexOf(over.id as string);
+      update("photos", arrayMove(f.photos, oldIndex, newIndex));
+    }
+  };
+
   const totalCost = Number(f.purchase_price || 0) + totalExpenses;
   const suggested = totalCost * (1 + Number(f.profit_margin_pct || 0) / 100);
 
@@ -185,6 +230,68 @@ export function VehicleForm({
     displayTax -
     (showSaleFields ? f.intermediary_commission : commission);
 
+  const addWatermark = async (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const fontSize = Math.floor(img.width * 0.05);
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        const text = "MRM Automóveis";
+
+        const padding = fontSize * 0.5;
+        const textWidth = ctx.measureText(text).width;
+        
+        // Fundo escuro semi-transparente
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(
+          canvas.width - textWidth - padding * 2 - 20,
+          canvas.height - fontSize - padding * 2 - 20,
+          textWidth + padding * 2,
+          fontSize + padding * 2
+        );
+
+        // Texto branco sólido
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        ctx.fillText(text, canvas.width - padding - 20, canvas.height - padding - 20);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            resolve(new File([blob], file.name, { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          0.9
+        );
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  };
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
@@ -197,17 +304,29 @@ export function VehicleForm({
     }
     const urls: string[] = [];
     for (const file of files) {
-      const ext = file.name.split(".").pop();
-      const path = `${userData.user.id}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("vehicle-photos").upload(path, file);
-      if (error) {
-        toast.error(`Erro ao enviar ${file.name}`);
-        continue;
+      try {
+        const options = {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
+        };
+        const compressedFile = await imageCompression(file, options);
+        const watermarkedFile = await addWatermark(compressedFile);
+
+        const ext = watermarkedFile.name.split(".").pop() || "jpg";
+        const path = `${userData.user.id}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage.from("vehicle-photos").upload(path, watermarkedFile);
+        if (error) {
+          toast.error(`Erro ao enviar ${file.name}`);
+          continue;
+        }
+        const { data: signed } = await supabase.storage
+          .from("vehicle-photos")
+          .createSignedUrl(path, 60 * 60 * 24 * 365);
+        if (signed?.signedUrl) urls.push(signed.signedUrl);
+      } catch (err) {
+        toast.error(`Erro ao processar imagem ${file.name}`);
       }
-      const { data: signed } = await supabase.storage
-        .from("vehicle-photos")
-        .createSignedUrl(path, 60 * 60 * 24 * 365);
-      if (signed?.signedUrl) urls.push(signed.signedUrl);
     }
     update("photos", [...f.photos, ...urls]);
     setUploading(false);
@@ -220,32 +339,27 @@ export function VehicleForm({
       f.photos.filter((_, idx) => idx !== i),
     );
 
+  const movePhoto = (from: number, to: number) => {
+    if (to < 0 || to >= f.photos.length) return;
+    const newPhotos = [...f.photos];
+    const [moved] = newPhotos.splice(from, 1);
+    newPhotos.splice(to, 0, moved);
+    update("photos", newPhotos);
+  };
+
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-8">
       <FadeInStagger className="space-y-8">
         {/* Photos */}
         <Section title="Fotos">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <AnimatePresence>
-              {f.photos.map((url, i) => (
-                <motion.div
-                  key={url}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  className="aspect-square relative rounded-lg overflow-hidden border group"
-                >
-                  <img src={url} alt="" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(i)}
-                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow-lg"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={f.photos} strategy={rectSortingStrategy}>
+                {f.photos.map((url, i) => (
+                  <SortablePhoto key={url} url={url} id={url} onRemove={() => removePhoto(i)} />
+                ))}
+              </SortableContext>
+            </DndContext>
             <label className="aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-muted/40 transition-colors group">
               <Upload className="h-6 w-6 text-muted-foreground group-hover:scale-110 transition-transform" />
               <span className="text-xs text-muted-foreground mt-2">
@@ -410,7 +524,24 @@ export function VehicleForm({
                   onChange={(e) => update("profit_margin_pct", +e.target.value || 0)}
                 />
               </Field>
-              <Field label="Valor real de venda (R$)">
+              <Field
+                label={
+                  <div className="flex items-center justify-between w-full">
+                    <span>Valor real de venda (R$)</span>
+                    <FipeModal 
+                      onApplyPrice={(data) => {
+                        update("asking_price", data.price);
+                        if (data.brand) update("brand", data.brand);
+                        if (data.model) update("model", data.model);
+                        if (data.year) update("year", data.year);
+                      }} 
+                      initialBrand={f.brand}
+                      initialModel={f.model}
+                      initialYear={f.year}
+                    />
+                  </div>
+                }
+              >
                 <Input
                   type="number"
                   step="0.01"
@@ -961,13 +1092,15 @@ export function VehicleForm({
                 size="sm"
                 onClick={() => {
                   const text =
-                    `🚀 OPORTUNIDADE: ${f.brand} ${f.model} ${f.year || ""}\n\n` +
-                    `✅ ${f.mileage ? f.mileage.toLocaleString() : "—"} KM\n` +
-                    `✅ Cor: ${f.color || "—"}\n` +
-                    `✅ Combustível: ${f.fuel || "—"}\n` +
-                    `✅ Câmbio: ${f.transmission || "—"}\n` +
-                    (f.asking_price ? `💰 VALOR: ${brl(f.asking_price)}\n\n` : "\n") +
-                    `Entre em contato para mais detalhes! 📞`;
+                    `🚗 ESTOQUE MRM AUTOMÓVEIS\n` +
+                    `🚘 ${f.brand || ""} ${f.model || ""}\n` +
+                    `📅 Ano: ${f.year || ""}\n` +
+                    `🛣️ KM: ${f.mileage ? f.mileage.toLocaleString("pt-BR") : "—"}\n` +
+                    `🎨 Cor: ${f.color || "—"}\n` +
+                    `⛽ ${f.fuel || "—"} | ⚙️ ${f.transmission || "—"}\n\n` +
+                    (f.asking_price ? `💰 Por apenas: ${brl(f.asking_price)}\n\n` : "\n") +
+                    `✨ Veículo de procedência, revisado e com garantia!\n` +
+                    `📱 Mande uma mensagem agora e não perca essa oportunidade.`;
                   update("ad_text", text);
                 }}
               >
@@ -1321,13 +1454,44 @@ function Grid({ children }: { children: ReactNode }) {
   return <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{children}</div>;
 }
 
-function Field({ label, children, full }: { label: string; children: ReactNode; full?: boolean }) {
+function Field({ label, children, full }: { label: ReactNode; children: ReactNode; full?: boolean }) {
   return (
     <div className={cn(full ? "sm:col-span-2 lg:col-span-3" : "", "space-y-2")}>
       <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
         {label}
       </Label>
       <div className="relative group">{children}</div>
+    </div>
+  );
+}
+
+export function SortablePhoto({ url, id, onRemove }: { url: string; id: string; onRemove: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="aspect-square relative rounded-lg overflow-hidden border group bg-background"
+    >
+      <div {...attributes} {...listeners} className="w-full h-full cursor-grab active:cursor-grabbing outline-none">
+        <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" />
+      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow-lg z-10"
+      >
+        <X className="h-3 w-3" />
+      </button>
     </div>
   );
 }

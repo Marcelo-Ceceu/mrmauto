@@ -26,11 +26,17 @@ import { Helmet } from "react-helmet";
 import { useFavorites } from "@/hooks/useFavorites";
 import { cn } from "@/lib/utils";
 import { Heart, Trash2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
-export const Route = createFileRoute("/")(({
+export const Route = createFileRoute("/")({
   component: LandingPage,
-}));
+});
 
 function LandingPage() {
   const [filterValues, setFilterValues] = useState<VehicleFilterValues>({
@@ -221,8 +227,7 @@ function LandingPage() {
 
           <FadeIn delay={0.1}>
             <h1 className="font-display text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-black tracking-tight mb-8 leading-[1.05]">
-              Seu próximo{" "}
-              <span className="text-gradient-primary italic text-glow-red">carro</span>
+              Seu próximo <span className="text-gradient-primary italic text-glow-red">carro</span>
               <br />
               está aqui!
             </h1>
@@ -230,8 +235,8 @@ function LandingPage() {
 
           <FadeIn delay={0.2}>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-12 leading-relaxed">
-              Qualidade, transparência e as melhores condições de financiamento do mercado.
-              Sua jornada para o veículo perfeito começa aqui.
+              Qualidade, transparência e as melhores condições de financiamento do mercado. Sua
+              jornada para o veículo perfeito começa aqui.
             </p>
           </FadeIn>
 
@@ -292,7 +297,8 @@ function LandingPage() {
               Nossos <span className="text-gradient-gold">Diferenciais</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-              Mais do que vender carros — oferecemos uma experiência completa e segura do início ao fim.
+              Mais do que vender carros — oferecemos uma experiência completa e segura do início ao
+              fim.
             </p>
           </FadeIn>
 
@@ -367,7 +373,9 @@ function LandingPage() {
               <h2 className="font-display text-3xl md:text-4xl font-black mb-2">
                 Nosso <span className="text-gradient-primary">Estoque</span>
               </h2>
-              <p className="text-muted-foreground">Veículos selecionados, revisados e prontos para você.</p>
+              <p className="text-muted-foreground">
+                Veículos selecionados, revisados e prontos para você.
+              </p>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground bg-card/60 px-4 py-2 rounded-full border border-white/10">
               <Car className="h-4 w-4 text-primary" />
@@ -562,7 +570,7 @@ function VehicleCard({ vehicle: v, whatsappUrl }: VehicleCardProps) {
           )}
         </div>
       </Link>
-      
+
       {/* Favorite Button */}
       <button
         onClick={(e) => {
@@ -572,9 +580,9 @@ function VehicleCard({ vehicle: v, whatsappUrl }: VehicleCardProps) {
         }}
         className={cn(
           "absolute top-3 right-3 p-2 rounded-full backdrop-blur-sm transition-all z-20",
-          favorited 
-            ? "bg-red-500/90 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] scale-110" 
-            : "bg-black/40 text-white hover:bg-black/60 hover:scale-110"
+          favorited
+            ? "bg-red-500/90 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] scale-110"
+            : "bg-black/40 text-white hover:bg-black/60 hover:scale-110",
         )}
       >
         <Heart className={cn("h-4 w-4", favorited && "fill-current")} />
@@ -636,10 +644,10 @@ function FavoritesBadge() {
 
 function FavoritesList({ vehicles, whatsappUrl }: { vehicles: any[]; whatsappUrl: string }) {
   const { favorites, toggleFavorite } = useFavorites();
-  
+
   if (!vehicles) return <div className="py-8 text-center text-muted-foreground">Carregando...</div>;
-  
-  const favoritedVehicles = vehicles.filter(v => favorites.includes(v.id));
+
+  const favoritedVehicles = vehicles.filter((v) => favorites.includes(v.id));
 
   if (favoritedVehicles.length === 0) {
     return (
@@ -655,21 +663,42 @@ function FavoritesList({ vehicles, whatsappUrl }: { vehicles: any[]; whatsappUrl
 
   return (
     <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-      {favoritedVehicles.map(v => (
-        <div key={v.id} className="flex gap-4 p-3 bg-muted/30 rounded-xl border border-white/5 relative group">
-          <Link to="/estoque/$id" params={{ id: v.id }} className="shrink-0 w-24 h-20 bg-muted rounded-lg overflow-hidden block">
+      {favoritedVehicles.map((v) => (
+        <div
+          key={v.id}
+          className="flex gap-4 p-3 bg-muted/30 rounded-xl border border-white/5 relative group"
+        >
+          <Link
+            to="/estoque/$id"
+            params={{ id: v.id }}
+            className="shrink-0 w-24 h-20 bg-muted rounded-lg overflow-hidden block"
+          >
             {v.photos?.[0] ? (
-              <img src={v.photos[0]} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+              <img
+                src={v.photos[0]}
+                alt=""
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+              />
             ) : (
-              <div className="w-full h-full flex items-center justify-center"><Car className="h-6 w-6 text-muted-foreground/20" /></div>
+              <div className="w-full h-full flex items-center justify-center">
+                <Car className="h-6 w-6 text-muted-foreground/20" />
+              </div>
             )}
           </Link>
           <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <Link to="/estoque/$id" params={{ id: v.id }} className="font-bold text-base truncate hover:text-primary transition-colors">
+            <Link
+              to="/estoque/$id"
+              params={{ id: v.id }}
+              className="font-bold text-base truncate hover:text-primary transition-colors"
+            >
               {v.brand} {v.model}
             </Link>
-            <div className="text-xs text-muted-foreground mt-0.5 mb-1">{v.year} • {v.mileage?.toLocaleString("pt-BR")} km</div>
-            <div className="font-display font-black text-gradient-primary">{brl(v.asking_price || 0)}</div>
+            <div className="text-xs text-muted-foreground mt-0.5 mb-1">
+              {v.year} • {v.mileage?.toLocaleString("pt-BR")} km
+            </div>
+            <div className="font-display font-black text-gradient-primary">
+              {brl(v.asking_price || 0)}
+            </div>
           </div>
           <div className="flex flex-col gap-2 justify-center shrink-0">
             <a
@@ -695,19 +724,25 @@ function FavoritesList({ vehicles, whatsappUrl }: { vehicles: any[]; whatsappUrl
 }
 
 function SellCarSection({ whatsappUrl }: { whatsappUrl: string }) {
-  const [formData, setFormData] = useState({ name: "", phone: "", email: "", price: "", carInfo: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    price: "",
+    carInfo: "",
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || !formData.carInfo) return;
-    
+
     setSubmitting(true);
     try {
       await supabase.from("leads").insert({
         name: `${formData.name} (Venda: ${formData.carInfo} | R$ ${formData.price} | ${formData.email})`,
         phone: formData.phone,
-        status: "new"
+        status: "new",
       });
     } catch (err) {
       console.error(err);
@@ -734,12 +769,16 @@ function SellCarSection({ whatsappUrl }: { whatsappUrl: string }) {
             Quer <span className="text-gradient-primary">vender ou trocar</span> seu carro?
           </h2>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto mb-10">
-            Nós compramos o seu veículo com avaliação justa, pagamento à vista e muita segurança. Preencha os dados abaixo e entraremos em contato.
+            Nós compramos o seu veículo com avaliação justa, pagamento à vista e muita segurança.
+            Preencha os dados abaixo e entraremos em contato.
           </p>
         </FadeIn>
-        
+
         <FadeIn delay={0.2}>
-          <form onSubmit={handleSubmit} className="bg-card/60 backdrop-blur-md border border-white/10 p-6 sm:p-8 rounded-3xl shadow-elegant text-left max-w-2xl mx-auto">
+          <form
+            onSubmit={handleSubmit}
+            className="bg-card/60 backdrop-blur-md border border-white/10 p-6 sm:p-8 rounded-3xl shadow-elegant text-left max-w-2xl mx-auto"
+          >
             <div className="grid sm:grid-cols-2 gap-4 mb-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground ml-1">Seu Nome</label>
@@ -749,7 +788,7 @@ function SellCarSection({ whatsappUrl }: { whatsappUrl: string }) {
                   placeholder="Ex: João Silva"
                   className="w-full h-12 bg-background/50 border border-white/10 rounded-xl px-4 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                   value={formData.name}
-                  onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+                  onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
@@ -760,11 +799,11 @@ function SellCarSection({ whatsappUrl }: { whatsappUrl: string }) {
                   placeholder="(31) 99999-9999"
                   className="w-full h-12 bg-background/50 border border-white/10 rounded-xl px-4 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                   value={formData.phone}
-                  onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                  onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
                 />
               </div>
             </div>
-            
+
             <div className="grid sm:grid-cols-2 gap-4 mb-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground ml-1">E-mail</label>
@@ -774,30 +813,34 @@ function SellCarSection({ whatsappUrl }: { whatsappUrl: string }) {
                   placeholder="Ex: joao@email.com"
                   className="w-full h-12 bg-background/50 border border-white/10 rounded-xl px-4 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                   value={formData.email}
-                  onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                  onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground ml-1">Valor Desejado (R$)</label>
+                <label className="text-sm font-medium text-foreground ml-1">
+                  Valor Desejado (R$)
+                </label>
                 <input
                   type="text"
                   required
                   placeholder="Ex: 85.000,00"
                   className="w-full h-12 bg-background/50 border border-white/10 rounded-xl px-4 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                   value={formData.price}
-                  onChange={(e) => setFormData(p => ({ ...p, price: e.target.value }))}
+                  onChange={(e) => setFormData((p) => ({ ...p, price: e.target.value }))}
                 />
               </div>
             </div>
             <div className="space-y-2 mb-6">
-              <label className="text-sm font-medium text-foreground ml-1">Carro que deseja vender (Marca / Modelo / Ano)</label>
+              <label className="text-sm font-medium text-foreground ml-1">
+                Carro que deseja vender (Marca / Modelo / Ano)
+              </label>
               <input
                 type="text"
                 required
                 placeholder="Ex: Honda Civic Touring 2020"
                 className="w-full h-12 bg-background/50 border border-white/10 rounded-xl px-4 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                 value={formData.carInfo}
-                onChange={(e) => setFormData(p => ({ ...p, carInfo: e.target.value }))}
+                onChange={(e) => setFormData((p) => ({ ...p, carInfo: e.target.value }))}
               />
             </div>
             <Button

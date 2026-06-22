@@ -1,5 +1,16 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { Car, LayoutDashboard, Wallet, Plus, LogOut, Menu, X, Settings, Users, MessageSquare } from "lucide-react";
+import {
+  Car,
+  LayoutDashboard,
+  Wallet,
+  Plus,
+  LogOut,
+  Menu,
+  X,
+  Settings,
+  Users,
+  MessageSquare,
+} from "lucide-react";
 import { LogoIcon } from "@/components/LogoIcon";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -95,8 +106,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {user?.email?.charAt(0) || "U"}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate">{user?.email ? user.email.split("@")[0] : "Usuário"}</p>
-              <p className="text-[10px] text-sidebar-foreground/50 truncate">{user?.email || "carregando..."}</p>
+              <p className="text-sm font-medium truncate">
+                {user?.email ? user.email.split("@")[0] : "Usuário"}
+              </p>
+              <p className="text-[10px] text-sidebar-foreground/50 truncate">
+                {user?.email || "carregando..."}
+              </p>
             </div>
           </div>
           <Button

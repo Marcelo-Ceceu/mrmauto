@@ -122,7 +122,9 @@ export function VehicleFilters({ onFilterChange, brands }: VehicleFiltersProps) 
                   Preço Máximo
                 </Label>
                 <span className="text-xs font-bold">
-                  {filters.maxPrice ? `Até R$ ${Number(filters.maxPrice).toLocaleString("pt-BR")}` : "Qualquer valor"}
+                  {filters.maxPrice
+                    ? `Até R$ ${Number(filters.maxPrice).toLocaleString("pt-BR")}`
+                    : "Qualquer valor"}
                 </span>
               </div>
               <Slider
@@ -146,13 +148,15 @@ export function VehicleFilters({ onFilterChange, brands }: VehicleFiltersProps) 
               <Slider
                 value={[
                   filters.minYear ? Number(filters.minYear) : 2000,
-                  filters.maxYear ? Number(filters.maxYear) : new Date().getFullYear() + 1
+                  filters.maxYear ? Number(filters.maxYear) : new Date().getFullYear() + 1,
                 ]}
                 min={2000}
                 max={new Date().getFullYear() + 1}
                 step={1}
                 minStepsBetweenThumbs={1}
-                onValueChange={(val) => handleUpdate({ minYear: val[0].toString(), maxYear: val[1].toString() })}
+                onValueChange={(val) =>
+                  handleUpdate({ minYear: val[0].toString(), maxYear: val[1].toString() })
+                }
               />
             </div>
 
@@ -162,7 +166,9 @@ export function VehicleFilters({ onFilterChange, brands }: VehicleFiltersProps) 
                   Km Máximo
                 </Label>
                 <span className="text-xs font-bold">
-                  {filters.maxMileage ? `Até ${Number(filters.maxMileage).toLocaleString("pt-BR")} km` : "Qualquer Km"}
+                  {filters.maxMileage
+                    ? `Até ${Number(filters.maxMileage).toLocaleString("pt-BR")} km`
+                    : "Qualquer Km"}
                 </span>
               </div>
               <Slider

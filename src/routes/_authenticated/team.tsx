@@ -74,6 +74,25 @@ function TeamPage() {
     },
   });
 
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ userId, is_admin }: { userId: string; is_admin: boolean }) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ is_admin })
+        .eq("id", userId);
+      
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profiles"] });
+      toast.success("Permissão atualizada com sucesso");
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao atualizar permissão", { description: error.message });
+    },
+  });
+
   if (!isAdmin) {
     return (
       <div className="container py-20 text-center">
@@ -206,18 +225,29 @@ function TeamPage() {
                         <div className="text-xs text-muted-foreground">{profile.email}</div>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive transition-colors"
-                      onClick={() => {
-                        if (confirm("Deseja realmente remover este acesso?")) {
-                          deleteMutation.mutate(profile.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 border-r pr-4">
+                        <Label className="text-xs text-muted-foreground cursor-pointer" htmlFor={`role-${profile.id}`}>Admin</Label>
+                        <Switch
+                          id={`role-${profile.id}`}
+                          checked={profile.is_admin}
+                          onCheckedChange={(v) => updateRoleMutation.mutate({ userId: profile.id, is_admin: v })}
+                          disabled={updateRoleMutation.isPending}
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={() => {
+                          if (confirm("Deseja realmente remover este acesso?")) {
+                            deleteMutation.mutate(profile.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}

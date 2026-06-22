@@ -76,6 +76,20 @@ serve(async (req) => {
       });
     }
 
+    if (action === "update_role") {
+      const { error: profileError } = await supabaseClient
+        .from("profiles")
+        .update({ is_admin: !!is_admin })
+        .eq("id", userId);
+
+      if (profileError) throw profileError;
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     throw new Error("Invalid action");
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {

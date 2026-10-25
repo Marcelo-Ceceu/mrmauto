@@ -25,9 +25,8 @@ import { useAuth } from "@/hooks/use-auth";
 const mainNavItems = [
   { id: "dashboard", to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "estoque", to: "/vehicles", label: "Estoque", icon: Car },
-  { id: "vendas", to: "/leads", label: "Vendas", icon: TrendingUp },
-  { id: "financeiro", to: "/finance", label: "Financeiro", icon: Wallet },
   { id: "clientes", to: "/leads", label: "Clientes", icon: Users },
+  { id: "financeiro", to: "/finance", label: "Financeiro", icon: Wallet },
   { id: "relatorios", to: "/finance", label: "Relatórios", icon: BarChart3 },
 ] as const;
 
@@ -54,17 +53,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (item.id === "estoque") {
       return path === "/vehicles" || path.startsWith("/vehicles/");
     }
-    if (item.id === "vendas") {
-      return path === "/leads";
+    if (item.id === "clientes") {
+      return path === "/leads" || path.startsWith("/leads/");
     }
     if (item.id === "financeiro") {
       return path === "/finance";
     }
-    if (item.id === "clientes") {
-      return false; // Subitem do menu compartilhado com leads
-    }
     if (item.id === "relatorios") {
-      return false; // Subitem compartilhado com finance
+      return false;
     }
     if (item.id === "equipe") {
       return path.startsWith("/team");

@@ -61,35 +61,37 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "MRM AUTOMÓVEIS — Compra e Venda de Veículos" },
+      { title: "MRM Automóveis | Seminovos revisados em Belo Horizonte" },
       {
         name: "description",
-        content: "Sistema completo para gestão de compra, venda e finanças de veículos.",
+        content:
+          "Seminovos revisados e periciados em Belo Horizonte. Financiamento facilitado, troca com avaliação justa e documentação regularizada. Av. Raja Gabaglia, 2000 - Estoril.",
       },
-      { property: "og:title", content: "MRM AUTOMÓVEIS — Compra e Venda de Veículos" },
-      { name: "twitter:title", content: "MRM AUTOMÓVEIS — Compra e Venda de Veículos" },
+      { property: "og:title", content: "MRM Automóveis | Seminovos revisados em Belo Horizonte" },
+      { name: "twitter:title", content: "MRM Automóveis | Seminovos revisados em Belo Horizonte" },
       {
         property: "og:description",
-        content: "Sistema completo para gestão de compra, venda e finanças de veículos.",
+        content:
+          "Seminovos revisados e periciados em Belo Horizonte. Financiamento facilitado, troca com avaliação justa e documentação regularizada. Av. Raja Gabaglia, 2000 - Estoril.",
       },
       {
         name: "twitter:description",
-        content: "Sistema completo para gestão de compra, venda e finanças de veículos.",
+        content:
+          "Seminovos revisados e periciados em Belo Horizonte. Financiamento facilitado, troca com avaliação justa e documentação regularizada. Av. Raja Gabaglia, 2000 - Estoril.",
       },
       {
         property: "og:image",
-        content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/SwSVqVHFIySGtDmco3FanvEJ8xH3/social-images/social-1780618098674-4.webp",
+        content: "https://mrmautomoveis.com.br/og-image.jpg",
       },
       {
         name: "twitter:image",
-        content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/SwSVqVHFIySGtDmco3FanvEJ8xH3/social-images/social-1780618098674-4.webp",
+        content: "https://mrmautomoveis.com.br/og-image.jpg",
       },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
     links: [
+      { rel: "canonical", href: "https://mrmautomoveis.com.br/" },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
       { rel: "shortcut icon", href: "/favicon.ico" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },

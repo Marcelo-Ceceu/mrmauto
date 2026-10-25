@@ -52,7 +52,82 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+// CNPJ oficial da MRM Automóveis (altere o valor de [PREENCHER] quando tiver o número)
+const STORE_CNPJ = "[PREENCHER]";
+
+const autoDealerSchema = {
+  "@context": "https://schema.org",
+  "@type": "AutoDealer",
+  name: "MRM Automóveis",
+  image: "https://mrmautomoveis.com.br/og-image.jpg",
+  url: "https://mrmautomoveis.com.br",
+  telephone: "+55 31 98798-4668",
+  priceRange: "$$",
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "Av. Raja Gabaglia, 2000",
+    addressLocality: "Belo Horizonte",
+    addressRegion: "MG",
+    addressCountry: "BR",
+  },
+  openingHoursSpecification: [
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      opens: "08:30",
+      closes: "18:30",
+    },
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: "Saturday",
+      opens: "08:30",
+      closes: "14:00",
+    },
+  ],
+  sameAs: ["https://www.instagram.com/mrmautomoveis"],
+};
+
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "MRM Automóveis | Seminovos revisados em Belo Horizonte" },
+      {
+        name: "description",
+        content:
+          "Seminovos revisados e periciados em Belo Horizonte. Financiamento facilitado, troca com avaliação justa e documentação regularizada. Av. Raja Gabaglia, 2000 - Estoril.",
+      },
+      {
+        property: "og:title",
+        content: "MRM Automóveis | Seminovos revisados em Belo Horizonte",
+      },
+      {
+        property: "og:description",
+        content:
+          "Seminovos revisados e periciados em Belo Horizonte. Financiamento facilitado, troca com avaliação justa e documentação regularizada. Av. Raja Gabaglia, 2000 - Estoril.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://mrmautomoveis.com.br/" },
+      { property: "og:image", content: "https://mrmautomoveis.com.br/og-image.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      {
+        name: "twitter:title",
+        content: "MRM Automóveis | Seminovos revisados em Belo Horizonte",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "Seminovos revisados e periciados em Belo Horizonte. Financiamento facilitado, troca com avaliação justa e documentação regularizada. Av. Raja Gabaglia, 2000 - Estoril.",
+      },
+      { name: "twitter:image", content: "https://mrmautomoveis.com.br/og-image.jpg" },
+    ],
+    links: [{ rel: "canonical", href: "https://mrmautomoveis.com.br/" }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify(autoDealerSchema),
+      },
+    ],
+  }),
   component: LandingPage,
 });
 
@@ -68,7 +143,12 @@ function LandingPage() {
   });
   const [sortBy, setSortBy] = useState<"recent" | "price-asc" | "price-desc" | "km-asc">("recent");
 
-  const { data: vehicles, isLoading } = useQuery({
+  const {
+    data: vehicles,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["public-vehicles"],
     queryFn: async () => {
       let res = await supabase
@@ -88,14 +168,14 @@ function LandingPage() {
 
         if (fallback.error) {
           console.error("Error fetching vehicles:", fallback.error);
-          return [];
+          throw fallback.error;
         }
         return (fallback.data || []) as any[];
       }
 
       if (res.error) {
         console.error("Error fetching vehicles:", res.error);
-        return [];
+        throw res.error;
       }
       return (res.data || []) as any[];
     },
@@ -138,18 +218,21 @@ function LandingPage() {
     return "(31) 98798-4668";
   }, [rawPhone]);
 
+  const totalAvailableVehicles = useMemo(() => {
+    if (!vehicles) return [];
+    return vehicles.filter(
+      (v) => v.is_published === true && (v.status === "available" || v.status === "maintenance"),
+    );
+  }, [vehicles]);
+
   const brandCounts = useMemo(() => {
     if (!vehicles) return {};
     const counts: Record<string, number> = {};
-    vehicles
-      .filter(
-        (v) => v.is_published === true && (v.status === "available" || v.status === "maintenance"),
-      )
-      .forEach((v) => {
-        if (v.brand) counts[v.brand] = (counts[v.brand] || 0) + 1;
-      });
+    totalAvailableVehicles.forEach((v) => {
+      if (v.brand) counts[v.brand] = (counts[v.brand] || 0) + 1;
+    });
     return counts;
-  }, [vehicles]);
+  }, [totalAvailableVehicles]);
 
   const filteredVehicles = useMemo(() => {
     if (!vehicles) return [];
@@ -198,12 +281,29 @@ function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       <Helmet>
-        <title>MRM Automóveis — Seu próximo carro está aqui</title>
+        <title>MRM Automóveis | Seminovos revisados em Belo Horizonte</title>
         <meta
           name="description"
-          content="Encontre os melhores veículos seminovos em Belo Horizonte. Qualidade, procedência e as melhores taxas de financiamento."
+          content="Seminovos revisados e periciados em Belo Horizonte. Financiamento facilitado, troca com avaliação justa e documentação regularizada. Av. Raja Gabaglia, 2000 - Estoril."
         />
-        {typeof window !== "undefined" && <link rel="canonical" href={window.location.origin} />}
+        <link rel="canonical" href="https://mrmautomoveis.com.br/" />
+        <meta property="og:title" content="MRM Automóveis | Seminovos revisados em Belo Horizonte" />
+        <meta
+          property="og:description"
+          content="Seminovos revisados e periciados em Belo Horizonte. Financiamento facilitado, troca com avaliação justa e documentação regularizada. Av. Raja Gabaglia, 2000 - Estoril."
+        />
+        <meta property="og:image" content="https://mrmautomoveis.com.br/og-image.jpg" />
+        <meta property="og:url" content="https://mrmautomoveis.com.br/" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="MRM Automóveis | Seminovos revisados em Belo Horizonte" />
+        <meta
+          name="twitter:description"
+          content="Seminovos revisados e periciados em Belo Horizonte. Financiamento facilitado, troca com avaliação justa e documentação regularizada. Av. Raja Gabaglia, 2000 - Estoril."
+        />
+        <meta name="twitter:image" content="https://mrmautomoveis.com.br/og-image.jpg" />
+        <script type="application/ld+json">
+          {JSON.stringify(autoDealerSchema)}
+        </script>
       </Helmet>
 
       {/* ── HEADER ── */}
@@ -304,18 +404,36 @@ function LandingPage() {
                 Seminovos revisados em Belo Horizonte
               </div>
               <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight">
-                Encontre seu <span className="text-gradient-primary">próximo carro</span> hoje
+                Encontre seu <span className="text-gradient-primary">próximo veículo</span> hoje
               </h1>
             </FadeIn>
 
             <FadeIn direction="up" delay={0.1}>
               <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground bg-card/60 px-4 py-2 rounded-xl border border-white/10 w-fit backdrop-blur-sm">
-                <Car className="h-4 w-4 text-primary" />
-                <span>
-                  <strong className="text-foreground">{filteredVehicles.length}</strong>{" "}
-                  {filteredVehicles.length === 1 ? "veículo disponível" : "veículos disponíveis"}{" "}
-                  para pronta entrega
-                </span>
+                <Car className={cn("h-4 w-4 text-primary", isLoading && "animate-pulse")} />
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 rounded-full bg-primary animate-ping" />
+                    Carregando estoque...
+                  </span>
+                ) : isError ? (
+                  <span>Estoque temporariamente indisponível</span>
+                ) : totalAvailableVehicles.length === 0 ? (
+                  <a
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-foreground transition-colors flex items-center gap-1.5"
+                  >
+                    <span>Novidades chegando • Fale conosco no WhatsApp</span>
+                  </a>
+                ) : (
+                  <span>
+                    <strong className="text-foreground">{filteredVehicles.length}</strong>{" "}
+                    {filteredVehicles.length === 1 ? "veículo disponível" : "veículos disponíveis"}{" "}
+                    para pronta entrega
+                  </span>
+                )}
               </div>
             </FadeIn>
           </div>
@@ -438,12 +556,14 @@ function LandingPage() {
                       : "bg-white/5 hover:bg-white/10 text-muted-foreground border-white/10",
                   )}
                 >
-                  Todos (
-                  {vehicles?.filter(
-                    (v) =>
-                      v.is_published && (v.status === "available" || v.status === "maintenance"),
-                  ).length || 0}
-                  )
+                  {isLoading ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+                      Carregando estoque...
+                    </span>
+                  ) : (
+                    `Todos (${totalAvailableVehicles.length})`
+                  )}
                 </button>
                 <button
                   type="button"
@@ -468,6 +588,18 @@ function LandingPage() {
                   )}
                 >
                   Até R$ 50 mil
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterValues((p) => ({ ...p, maxMileage: "150000" }))}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full border whitespace-nowrap transition-all",
+                    filterValues.maxMileage === "150000"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white/5 hover:bg-white/10 text-muted-foreground border-white/10",
+                  )}
+                >
+                  Até 150.000 km
                 </button>
                 <button
                   type="button"
@@ -538,39 +670,97 @@ function LandingPage() {
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {isLoading
-              ? Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="h-[420px] rounded-2xl shimmer" />
-                ))
-              : filteredVehicles.map((v) => (
-                  <VehicleCard key={v.id} vehicle={v} whatsappUrl={whatsappUrl} />
-                ))}
-            {!isLoading && filteredVehicles.length === 0 && (
-              <div className="col-span-full text-center py-20 bg-card/30 rounded-2xl border border-white/5">
-                <Car className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-                <p className="text-muted-foreground mb-4 font-medium">
-                  Nenhum veículo encontrado com os filtros selecionados.
+            {isLoading &&
+              Array.from({ length: 4 }).map((_, i) => <VehicleCardSkeleton key={i} />)}
+
+            {isError && (
+              <div className="col-span-full text-center py-16 px-6 bg-card/40 rounded-2xl border border-red-500/20 max-w-xl mx-auto">
+                <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-4">
+                  <Car className="h-6 w-6" />
+                </div>
+                <h3 className="font-display font-bold text-lg mb-2">Ops! Ocorreu um problema</h3>
+                <p className="text-muted-foreground text-sm mb-6">
+                  Não foi possível carregar o estoque agora. Tente novamente ou fale conosco no WhatsApp.
                 </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setFilterValues({
-                      search: "",
-                      brand: "all",
-                      minPrice: "",
-                      maxPrice: "",
-                      minYear: "",
-                      maxYear: "",
-                      maxMileage: "",
-                    })
-                  }
-                  className="border-white/10 hover:bg-white/5 rounded-xl"
-                >
-                  Limpar todos os filtros
-                </Button>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <Button
+                    onClick={() => refetch()}
+                    variant="outline"
+                    className="border-white/10 hover:bg-white/5 rounded-xl w-full sm:w-auto"
+                  >
+                    Tentar novamente
+                  </Button>
+                  <a
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto"
+                  >
+                    <Button className="bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-bold w-full gap-2">
+                      <WhatsAppLogo className="h-4 w-4" />
+                      Falar no WhatsApp
+                    </Button>
+                  </a>
+                </div>
               </div>
             )}
+
+            {!isLoading &&
+              !isError &&
+              filteredVehicles.length > 0 &&
+              filteredVehicles.map((v) => (
+                <VehicleCard key={v.id} vehicle={v} whatsappUrl={whatsappUrl} />
+              ))}
+
+            {!isLoading &&
+              !isError &&
+              totalAvailableVehicles.length === 0 && (
+                <div className="col-span-full text-center py-16 px-6 bg-card/40 rounded-2xl border border-white/5 max-w-xl mx-auto">
+                  <Car className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                  <h3 className="font-display font-bold text-xl mb-2">
+                    Novos veículos chegando em breve!
+                  </h3>
+                  <p className="text-muted-foreground text-sm mb-6">
+                    Nosso estoque está sendo atualizado no momento com novas opções selecionadas e periciadas. Entre em contato para saber em primeira mão quais veículos estão chegando.
+                  </p>
+                  <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+                    <Button className="bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-bold gap-2">
+                      <WhatsAppLogo className="h-4 w-4" />
+                      Consultar veículos no WhatsApp
+                    </Button>
+                  </a>
+                </div>
+              )}
+
+            {!isLoading &&
+              !isError &&
+              totalAvailableVehicles.length > 0 &&
+              filteredVehicles.length === 0 && (
+                <div className="col-span-full text-center py-20 bg-card/30 rounded-2xl border border-white/5">
+                  <Car className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                  <p className="text-muted-foreground mb-4 font-medium">
+                    Nenhum veículo encontrado com os filtros selecionados.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setFilterValues({
+                        search: "",
+                        brand: "all",
+                        minPrice: "",
+                        maxPrice: "",
+                        minYear: "",
+                        maxYear: "",
+                        maxMileage: "",
+                      })
+                    }
+                    className="border-white/10 hover:bg-white/5 rounded-xl"
+                  >
+                    Limpar todos os filtros
+                  </Button>
+                </div>
+              )}
           </div>
         </div>
       </section>
@@ -590,7 +780,7 @@ function LandingPage() {
               Nossos <span className="text-gradient-gold">Diferenciais</span>
             </h2>
             <p className="text-muted-foreground text-base max-w-xl mx-auto">
-              Compre com segurança, laudo 100% aprovado e as menores taxas de financiamento de BH.
+              Compre com segurança, laudo 100% aprovado e condições facilitadas de financiamento.
             </p>
           </FadeIn>
 
@@ -767,17 +957,30 @@ function LandingPage() {
             </FadeIn>
           </div>
 
-          {/* Botão de Destaque WhatsApp */}
+          {/* Botão de Destaque WhatsApp e Instagram */}
           <FadeIn delay={0.4} className="text-center">
-            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
-              <Button
-                size="lg"
-                className="bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-elegant h-16 px-10 rounded-2xl text-base sm:text-lg font-extrabold hover:scale-105 transition-all duration-200 gap-3"
-              >
-                <WhatsAppLogo className="h-6 w-6" />
-                <span>Conversar no WhatsApp: {formattedPhone}</span>
-              </Button>
-            </a>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+                <Button
+                  size="lg"
+                  className="bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-elegant h-16 px-10 rounded-2xl text-base sm:text-lg font-extrabold hover:scale-105 transition-all duration-200 gap-3"
+                >
+                  <WhatsAppLogo className="h-6 w-6" />
+                  <span>Conversar no WhatsApp: {formattedPhone}</span>
+                </Button>
+              </a>
+              {instagramUrl && (
+                <a href={instagramUrl} target="_blank" rel="noopener noreferrer">
+                  <Button
+                    size="lg"
+                    className="bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 hover:opacity-95 text-white shadow-elegant h-16 px-8 rounded-2xl text-base sm:text-lg font-extrabold hover:scale-105 transition-all duration-200 gap-3"
+                  >
+                    <Instagram className="h-6 w-6" />
+                    <span>Instagram</span>
+                  </Button>
+                </a>
+              )}
+            </div>
           </FadeIn>
         </div>
       </section>
@@ -816,16 +1019,41 @@ function LandingPage() {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-pink-500/15 border border-pink-500/30 text-pink-400 hover:bg-gradient-to-tr hover:from-amber-500 hover:via-pink-500 hover:to-purple-600 hover:text-white transition-all text-sm font-bold shadow-sm"
               >
                 <Instagram className="h-4 w-4" />
-                <span className="hidden sm:inline">Instagram</span>
+                <span>Instagram</span>
               </a>
             )}
           </div>
 
-          <div className="text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} MRM AUTOMÓVEIS. Todos os direitos reservados.
+          <div className="flex flex-col items-center md:items-end gap-1 text-xs text-muted-foreground">
+            <span>MRM Automóveis - CNPJ: {STORE_CNPJ}</span>
+            <span>&copy; {new Date().getFullYear()} MRM AUTOMÓVEIS. Todos os direitos reservados.</span>
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function VehicleCardSkeleton() {
+  return (
+    <div className="bg-card/50 border border-white/5 rounded-2xl overflow-hidden flex flex-col animate-pulse">
+      <div className="aspect-[16/10] bg-white/5" />
+      <div className="p-5 flex-1 flex flex-col justify-between">
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="h-5 bg-white/10 rounded w-3/4" />
+            <div className="h-4 bg-white/5 rounded w-12" />
+          </div>
+          <div className="flex gap-3">
+            <div className="h-3.5 bg-white/5 rounded w-16" />
+            <div className="h-3.5 bg-white/5 rounded w-14" />
+          </div>
+        </div>
+        <div className="mt-5 pt-4 border-t border-white/5 space-y-3">
+          <div className="h-7 bg-white/10 rounded w-1/2" />
+          <div className="h-10 bg-white/5 rounded-xl w-full" />
+        </div>
+      </div>
     </div>
   );
 }

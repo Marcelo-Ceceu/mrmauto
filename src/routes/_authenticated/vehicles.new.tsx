@@ -106,6 +106,7 @@ function NewVehicle() {
       "down_payment_date",
       "down_payment_method",
       "first_installment_date",
+      "video_url",
     ];
 
     const insertData: Record<string, unknown> = {};
@@ -119,15 +120,27 @@ function NewVehicle() {
     insertData.user_id = userData.user.id;
     insertData.is_published = true;
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("vehicles")
       .insert(insertData as Database["public"]["Tables"]["vehicles"]["Insert"])
       .select("id")
       .single();
 
+    if (error && (error.code === "42703" || error.message.includes("video_url"))) {
+      const fallbackData = { ...insertData };
+      delete fallbackData.video_url;
+      const res = await supabase
+        .from("vehicles")
+        .insert(fallbackData as Database["public"]["Tables"]["vehicles"]["Insert"])
+        .select("id")
+        .single();
+      data = res.data;
+      error = res.error;
+    }
+
     setSaving(false);
-    if (error) {
-      toast.error(error.message);
+    if (error || !data) {
+      toast.error(error?.message || "Erro ao cadastrar veículo");
       return;
     }
     toast.success("Veículo cadastrado!");

@@ -391,6 +391,7 @@ export type Database = {
           transmission: string | null;
           updated_at: string;
           user_id: string;
+          video_url?: string | null;
           year: number | null;
         };
         Insert: {
@@ -447,6 +448,7 @@ export type Database = {
           transmission?: string | null;
           updated_at?: string;
           user_id: string;
+          video_url?: string | null;
           year?: number | null;
         };
         Update: {
@@ -503,6 +505,7 @@ export type Database = {
           transmission?: string | null;
           updated_at?: string;
           user_id?: string;
+          video_url?: string | null;
           year?: number | null;
         };
         Relationships: [

@@ -20,6 +20,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Heart,
+  Play,
+  Video,
+  Camera,
 } from "lucide-react";
 import { brl } from "@/lib/format";
 import { useState, useEffect } from "react";
@@ -34,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { useFavorites } from "@/hooks/useFavorites";
 import { Helmet } from "react-helmet";
 import { LogoIcon } from "@/components/LogoIcon";
+import { extractVideoUrl, parseVideoUrl, cleanAdText } from "@/lib/video";
 
 export const Route = createFileRoute("/estoque/$id")({
   loader: async ({ params }) => await fetchPublicVehicle(params.id),
@@ -64,16 +68,26 @@ export const Route = createFileRoute("/estoque/$id")({
 });
 
 async function fetchPublicVehicle(id: string) {
-  const { data, error } = await supabase
+  let res = await supabase
     .from("vehicles")
     .select(
-      "id, brand, model, year, mileage, color, fuel, transmission, photos, status, asking_price, ad_text",
+      "id, brand, model, year, mileage, color, fuel, transmission, photos, status, asking_price, ad_text, video_url",
     )
     .eq("id", id)
     .single();
 
-  if (error) throw error;
-  return data;
+  if (res.error && (res.error.code === "42703" || res.error.message.includes("video_url"))) {
+    res = await supabase
+      .from("vehicles")
+      .select(
+        "id, brand, model, year, mileage, color, fuel, transmission, photos, status, asking_price, ad_text",
+      )
+      .eq("id", id)
+      .single();
+  }
+
+  if (res.error) throw res.error;
+  return res.data;
 }
 
 function PublicVehicleDetail() {
@@ -83,13 +97,19 @@ function PublicVehicleDetail() {
   const favorited = isFavorite(id);
 
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const [activeMediaTab, setActiveMediaTab] = useState<"photos" | "video">("photos");
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: "", phone: "" });
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
 
+  const videoUrl = extractVideoUrl(vehicle);
+  const videoInfo = parseVideoUrl(videoUrl);
+  const cleanedDescription = cleanAdText(vehicle?.ad_text);
+
   useEffect(() => {
     setSelectedPhotoIndex(0);
+    setActiveMediaTab("photos");
     setIsPhotoModalOpen(false);
   }, [id]);
 
@@ -220,46 +240,109 @@ function PublicVehicleDetail() {
       <main className="max-w-7xl mx-auto px-6 py-8 lg:py-12">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
           <div className="space-y-4">
-            <div
-              className="aspect-[16/10] bg-muted rounded-2xl overflow-hidden shadow-elegant cursor-zoom-in group relative"
-              onClick={() => {
-                setSelectedPhotoIndex(0);
-                setIsPhotoModalOpen(true);
-              }}
-            >
-              {vehicle.photos?.[0] ? (
-                <>
-                  <img
-                    src={vehicle.photos[0]}
-                    alt={`${vehicle.brand} ${vehicle.model}`}
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500"
-                  />
-                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Maximize2 className="text-white h-10 w-10" />
-                  </div>
-                </>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Car className="h-20 w-20 text-muted-foreground/20" />
-                </div>
-              )}
-            </div>
+            {/* Abas de Mídia se tiver vídeo */}
+            {videoInfo && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveMediaTab("photos")}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer",
+                    activeMediaTab === "photos"
+                      ? "bg-primary text-white shadow-sm"
+                      : "bg-card/70 border border-white/5 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  Fotos ({vehicle.photos?.length || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveMediaTab("video")}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer",
+                    activeMediaTab === "video"
+                      ? "bg-red-600 text-white shadow-sm"
+                      : "bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20",
+                  )}
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  Assistir ao Vídeo
+                </button>
+              </div>
+            )}
 
-            {vehicle.photos && vehicle.photos.length > 1 && (
-              <div className="grid grid-cols-4 gap-4">
-                {vehicle.photos.map((photo, i) => (
+            {/* Visualizador Principal (Vídeo ou Foto) */}
+            {activeMediaTab === "video" && videoInfo ? (
+              <div className="aspect-[16/10] bg-black rounded-2xl overflow-hidden shadow-elegant border border-white/10 relative">
+                {videoInfo.type === "direct" ? (
+                  <video
+                    src={videoInfo.embedUrl || videoInfo.rawUrl}
+                    controls
+                    className="w-full h-full"
+                    autoPlay
+                  />
+                ) : videoInfo.embedUrl ? (
+                  <iframe
+                    src={videoInfo.embedUrl}
+                    title={`Vídeo de ${vehicle.brand} ${vehicle.model}`}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
+                    <Video className="w-12 h-12 text-muted-foreground mb-3" />
+                    <p className="text-sm text-muted-foreground mb-3">Vídeo disponível no link externo:</p>
+                    <a href={videoInfo.rawUrl} target="_blank" rel="noopener noreferrer">
+                      <Button className="bg-red-600 hover:bg-red-700 text-white font-bold">
+                        Assistir no YouTube / Link Externo
+                      </Button>
+                    </a>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                className="aspect-[16/10] bg-muted rounded-2xl overflow-hidden shadow-elegant cursor-zoom-in group relative"
+                onClick={() => {
+                  setIsPhotoModalOpen(true);
+                }}
+              >
+                {vehicle.photos?.[selectedPhotoIndex] ? (
+                  <>
+                    <img
+                      src={vehicle.photos[selectedPhotoIndex]}
+                      alt={`${vehicle.brand} ${vehicle.model}`}
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500"
+                    />
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Maximize2 className="text-white h-10 w-10" />
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Car className="h-20 w-20 text-muted-foreground/20" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Grade de miniaturas (Fotos + Miniatura de Vídeo) */}
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+              {vehicle.photos &&
+                vehicle.photos.map((photo, i) => (
                   <div
                     key={i}
                     className={cn(
                       "aspect-square bg-muted rounded-lg overflow-hidden cursor-pointer group relative transition-all",
-                      selectedPhotoIndex === i
+                      activeMediaTab === "photos" && selectedPhotoIndex === i
                         ? "ring-2 ring-primary ring-offset-2"
                         : "hover:opacity-80",
                     )}
                     onClick={() => {
+                      setActiveMediaTab("photos");
                       setSelectedPhotoIndex(i);
-                      // On mobile we might want to open modal directly, but on desktop just select
-                      if (window.innerWidth < 768) setIsPhotoModalOpen(true);
                     }}
                   >
                     <img
@@ -269,8 +352,36 @@ function PublicVehicleDetail() {
                     />
                   </div>
                 ))}
-              </div>
-            )}
+
+              {videoInfo && (
+                <div
+                  className={cn(
+                    "aspect-square rounded-lg overflow-hidden cursor-pointer group relative transition-all border flex flex-col items-center justify-center bg-black/70",
+                    activeMediaTab === "video"
+                      ? "ring-2 ring-red-500 ring-offset-2 border-transparent"
+                      : "border-red-500/20 hover:border-red-500/50",
+                  )}
+                  onClick={() => setActiveMediaTab("video")}
+                  title="Assistir ao vídeo"
+                >
+                  {vehicle.photos?.[0] ? (
+                    <img
+                      src={vehicle.photos[0]}
+                      alt="Thumbnail do vídeo"
+                      className="w-full h-full object-cover opacity-40 group-hover:opacity-60 transition-opacity"
+                    />
+                  ) : null}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40">
+                    <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <Play className="w-4 h-4 fill-current ml-0.5" />
+                    </div>
+                    <span className="text-[10px] font-bold text-white uppercase tracking-wider">
+                      Vídeo
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <Dialog open={isPhotoModalOpen} onOpenChange={setIsPhotoModalOpen}>
               <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 border-none bg-black/90 shadow-none overflow-hidden flex items-center justify-center">
@@ -413,6 +524,21 @@ function PublicVehicleDetail() {
               />
             </div>
 
+            {videoInfo && activeMediaTab !== "video" && (
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  setActiveMediaTab("video");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className="w-full border-red-500/30 bg-red-500/5 text-red-400 hover:bg-red-500/15 hover:text-red-300 font-bold h-12 rounded-xl mb-3 gap-2"
+              >
+                <Play className="w-4 h-4 fill-current text-red-500" />
+                Assistir ao vídeo deste veículo
+              </Button>
+            )}
+
             <Button
               size="lg"
               className="w-full bg-gradient-primary h-14 text-lg shadow-elegant"
@@ -421,11 +547,11 @@ function PublicVehicleDetail() {
               <MessageCircle className="mr-2 h-5 w-5" /> Falar com Corretor
             </Button>
 
-            {vehicle.ad_text && (
-              <div className="space-y-3 pt-6 border-t">
+            {cleanedDescription && (
+              <div className="space-y-3 pt-6 border-t border-white/5">
                 <h2 className="font-display text-xl font-bold">Descrição</h2>
                 <div className="bg-muted/30 p-6 rounded-2xl text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {vehicle.ad_text}
+                  {cleanedDescription}
                 </div>
               </div>
             )}

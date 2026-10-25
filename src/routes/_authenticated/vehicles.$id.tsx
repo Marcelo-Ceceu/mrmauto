@@ -215,6 +215,7 @@ function VehicleDetail() {
       "down_payment_date",
       "down_payment_method",
       "first_installment_date",
+      "video_url",
     ];
 
     const updateData: Record<string, unknown> = {};
@@ -233,10 +234,20 @@ function VehicleDetail() {
       updateData.is_published = data.vehicle.is_published;
     }
 
-    const { error: vehicleError } = await supabase
+    let { error: vehicleError } = await supabase
       .from("vehicles")
       .update(updateData as Database["public"]["Tables"]["vehicles"]["Update"])
       .eq("id", id);
+
+    if (vehicleError && (vehicleError.code === "42703" || vehicleError.message.includes("video_url"))) {
+      const fallbackData = { ...updateData };
+      delete fallbackData.video_url;
+      const res = await supabase
+        .from("vehicles")
+        .update(fallbackData as Database["public"]["Tables"]["vehicles"]["Update"])
+        .eq("id", id);
+      vehicleError = res.error;
+    }
 
     if (vehicleError) {
       toast.error(vehicleError.message);

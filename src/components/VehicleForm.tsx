@@ -8,7 +8,10 @@ import {
   DollarSign,
   ChevronLeft,
   ChevronRight,
+  Video,
+  Play,
 } from "lucide-react";
+import { parseVideoUrl, extractVideoUrl, injectVideoToAdText, cleanAdText } from "@/lib/video";
 import {
   DndContext,
   closestCenter,
@@ -101,6 +104,7 @@ export type VehicleFormState = {
   trade_in_renavam?: string;
   trade_in_mileage?: number | null;
   ad_text: string | null;
+  video_url?: string | null;
   // New fields for down payment and installments
   down_payment_amount: number;
   down_payment_date: string | null;
@@ -154,6 +158,7 @@ const empty: VehicleFormState = {
   trade_in_status: "maintenance",
   trade_in_publish: false,
   ad_text: null,
+  video_url: null,
   down_payment_amount: 0,
   down_payment_date: new Date().toISOString().slice(0, 10),
   down_payment_method: "pix",
@@ -176,11 +181,23 @@ export function VehicleForm({
   submitLabel: ReactNode;
   showSaleFields?: boolean;
 }) {
-  const [f, setF] = useState<VehicleFormState>({ ...empty, ...initial });
+  const resolveInitial = (init?: Partial<VehicleFormState>): VehicleFormState => {
+    if (!init) return empty;
+    const extractedVideo = init.video_url || extractVideoUrl(init);
+    const cleanedAd = cleanAdText(init.ad_text);
+    return {
+      ...empty,
+      ...init,
+      video_url: extractedVideo || null,
+      ad_text: cleanedAd || null,
+    };
+  };
+
+  const [f, setF] = useState<VehicleFormState>(resolveInitial(initial));
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    if (initial) setF((s) => ({ ...s, ...initial }));
+    if (initial) setF(resolveInitial(initial));
   }, [initial]);
 
   const update = <K extends keyof VehicleFormState>(k: K, v: VehicleFormState[K]) =>
@@ -350,37 +367,93 @@ export function VehicleForm({
     update("photos", newPhotos);
   };
 
+  const videoPreview = parseVideoUrl(f.video_url);
+
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-8">
       <FadeInStagger className="space-y-8">
-        {/* Photos */}
-        <Section title="Fotos">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext items={f.photos} strategy={rectSortingStrategy}>
-                {f.photos.map((url, i) => (
-                  <SortablePhoto key={url} url={url} id={url} onRemove={() => removePhoto(i)} />
-                ))}
-              </SortableContext>
-            </DndContext>
-            <label className="aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-muted/40 transition-colors group">
-              <Upload className="h-6 w-6 text-muted-foreground group-hover:scale-110 transition-transform" />
-              <span className="text-xs text-muted-foreground mt-2">
-                {uploading ? "Enviando..." : "Adicionar"}
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={handleUpload}
-                disabled={uploading}
+        {/* Photos and Video */}
+        <Section title="Fotos e Vídeo">
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext items={f.photos} strategy={rectSortingStrategy}>
+                  {f.photos.map((url, i) => (
+                    <SortablePhoto key={url} url={url} id={url} onRemove={() => removePhoto(i)} />
+                  ))}
+                </SortableContext>
+              </DndContext>
+              <label className="aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-muted/40 transition-colors group">
+                <Upload className="h-6 w-6 text-muted-foreground group-hover:scale-110 transition-transform" />
+                <span className="text-xs text-muted-foreground mt-2">
+                  {uploading ? "Enviando..." : "Adicionar foto"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleUpload}
+                  disabled={uploading}
+                />
+              </label>
+            </div>
+
+            {/* Espaço para Vídeo do Veículo */}
+            <div className="pt-4 border-t border-white/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="vehicle_video_url" className="text-sm font-semibold flex items-center gap-2">
+                  <Video className="w-4 h-4 text-red-500" />
+                  Vídeo do Veículo (Opcional)
+                </Label>
+                {f.video_url && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => update("video_url", null)}
+                    className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="w-3.5 h-3.5 mr-1" /> Remover vídeo
+                  </Button>
+                )}
+              </div>
+              <Input
+                id="vehicle_video_url"
+                placeholder="Cole o link do vídeo (YouTube, YouTube Shorts, Vimeo ou link direto .mp4)"
+                value={f.video_url ?? ""}
+                onChange={(e) => update("video_url", e.target.value ? e.target.value.trim() : null)}
+                className="bg-background/60"
               />
-            </label>
+              <p className="text-xs text-muted-foreground">
+                Exemplos suportados: <code className="text-primary font-mono text-[11px]">https://www.youtube.com/watch?v=...</code>, <code className="text-primary font-mono text-[11px]">https://youtu.be/...</code> ou Shorts. O vídeo terá um player dedicado na página do veículo.
+              </p>
+
+              {videoPreview && videoPreview.embedUrl && (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <Play className="w-3.5 h-3.5 text-emerald-400" /> Pré-visualização do player:
+                  </p>
+                  <div className="aspect-video max-w-lg rounded-xl overflow-hidden border border-white/10 bg-black/60 shadow-elegant">
+                    {videoPreview.type === "direct" ? (
+                      <video src={videoPreview.embedUrl} controls className="w-full h-full" />
+                    ) : (
+                      <iframe
+                        src={videoPreview.embedUrl}
+                        title="Pré-visualização do vídeo"
+                        className="w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </Section>
 
@@ -1164,6 +1237,8 @@ export function VehicleForm({
                 tax_amount: f.tax_amount || 0,
                 tax_rate: f.tax_rate || 0,
                 profit_margin_pct: f.profit_margin_pct || 0,
+                video_url: f.video_url?.trim() || null,
+                ad_text: injectVideoToAdText(f.ad_text, f.video_url),
               };
               await onSubmit(submissionData);
             }}

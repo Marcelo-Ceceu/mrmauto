@@ -32,6 +32,7 @@ import {
   Flame,
   ArrowUpDown,
   Clock,
+  Play,
 } from "lucide-react";
 import { brl } from "@/lib/format";
 import { useState, useMemo } from "react";
@@ -41,6 +42,7 @@ import { Helmet } from "react-helmet";
 import { useFavorites } from "@/hooks/useFavorites";
 import { cn } from "@/lib/utils";
 import { Heart, Trash2 } from "lucide-react";
+import { extractVideoUrl } from "@/lib/video";
 import {
   Dialog,
   DialogContent,
@@ -806,6 +808,7 @@ type VehicleCardProps = {
 function VehicleCard({ vehicle: v, whatsappUrl }: VehicleCardProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const favorited = isFavorite(v.id);
+  const hasVideo = !!extractVideoUrl(v);
 
   return (
     <div className="group relative bg-card/50 border border-white/5 rounded-2xl overflow-hidden hover:border-white/15 hover:shadow-card transition-all duration-300 hover:-translate-y-1 flex flex-col">
@@ -829,12 +832,20 @@ function VehicleCard({ vehicle: v, whatsappUrl }: VehicleCardProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
             <span className="text-white text-sm font-bold">Ver detalhes →</span>
           </div>
-          {/* Color badge */}
-          {v.color && (
-            <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-white text-[10px] font-medium z-10 pointer-events-none">
-              {v.color}
-            </div>
-          )}
+
+          {/* Badges no topo da foto */}
+          <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10 pointer-events-none">
+            {hasVideo && (
+              <div className="px-2 py-0.5 rounded-full bg-red-600/95 backdrop-blur-sm text-white text-[10px] font-bold flex items-center gap-1 shadow-sm">
+                <Play className="w-2.5 h-2.5 fill-current" /> Vídeo
+              </div>
+            )}
+            {v.color && (
+              <div className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium">
+                {v.color}
+              </div>
+            )}
+          </div>
         </div>
       </Link>
 

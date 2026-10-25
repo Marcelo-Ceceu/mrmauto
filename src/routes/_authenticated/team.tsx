@@ -76,11 +76,8 @@ function TeamPage() {
 
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, is_admin }: { userId: string; is_admin: boolean }) => {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ is_admin })
-        .eq("id", userId);
-      
+      const { error } = await supabase.from("profiles").update({ is_admin }).eq("id", userId);
+
       if (error) throw error;
       return true;
     },
@@ -227,11 +224,18 @@ function TeamPage() {
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2 border-r pr-4">
-                        <Label className="text-xs text-muted-foreground cursor-pointer" htmlFor={`role-${profile.id}`}>Admin</Label>
+                        <Label
+                          className="text-xs text-muted-foreground cursor-pointer"
+                          htmlFor={`role-${profile.id}`}
+                        >
+                          Admin
+                        </Label>
                         <Switch
                           id={`role-${profile.id}`}
-                          checked={profile.is_admin}
-                          onCheckedChange={(v) => updateRoleMutation.mutate({ userId: profile.id, is_admin: v })}
+                          checked={profile.is_admin ?? false}
+                          onCheckedChange={(v) =>
+                            updateRoleMutation.mutate({ userId: profile.id, is_admin: v })
+                          }
                           disabled={updateRoleMutation.isPending}
                         />
                       </div>

@@ -393,8 +393,10 @@ function VehicleDetail() {
 
       toast.success("Documento anexado com sucesso");
       qc.invalidateQueries({ queryKey: ["vehicle", id] });
-    } catch (error: any) {
-      toast.error("Erro ao fazer upload: " + error.message);
+    } catch (error) {
+      toast.error(
+        "Erro ao fazer upload: " + (error instanceof Error ? error.message : String(error)),
+      );
     } finally {
       setUploadingDoc(false);
       // Reset input
@@ -413,8 +415,8 @@ function VehicleDetail() {
 
       toast.success("Documento removido");
       qc.invalidateQueries({ queryKey: ["vehicle", id] });
-    } catch (error: any) {
-      toast.error("Erro ao remover: " + error.message);
+    } catch (error) {
+      toast.error("Erro ao remover: " + (error instanceof Error ? error.message : String(error)));
     }
   };
 

@@ -2,7 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LogoIcon } from "@/components/LogoIcon";
+import { WhatsAppLogo } from "@/components/WhatsAppLogo";
 import {
   Car,
   ChevronRight,
@@ -17,10 +26,16 @@ import {
   Fuel,
   Gauge,
   Calendar,
+  Search,
+  SlidersHorizontal,
+  X,
+  Flame,
+  ArrowUpDown,
+  Clock,
 } from "lucide-react";
 import { brl } from "@/lib/format";
 import { useState, useMemo } from "react";
-import { VehicleFilters, VehicleFilterValues } from "@/components/VehicleFilters";
+import { VehicleFilterValues } from "@/components/VehicleFilters";
 import { FadeIn, FadeInStagger } from "@/components/ui/fade-in";
 import { Helmet } from "react-helmet";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -48,6 +63,7 @@ function LandingPage() {
     maxYear: "",
     maxMileage: "",
   });
+  const [sortBy, setSortBy] = useState<"recent" | "price-asc" | "price-desc" | "km-asc">("recent");
 
   const { data: vehicles, isLoading } = useQuery({
     queryKey: ["public-vehicles"],
@@ -67,22 +83,57 @@ function LandingPage() {
     },
   });
 
-  const { data: whatsappSetting } = useQuery({
-    queryKey: ["whatsapp-setting"],
+  const { data: storeSettings } = useQuery({
+    queryKey: ["store-settings"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("settings")
-        .select("value")
-        .eq("key", "whatsapp_number")
-        .single();
-      return data?.value || "5531987984668";
+      const { data } = await supabase.from("settings").select("key, value");
+      const map: Record<string, string> = {};
+      data?.forEach((item) => {
+        map[item.key] = item.value;
+      });
+      return {
+        whatsapp: map["whatsapp_number"] || "5531987984668",
+        address: map["store_address"] || "",
+      };
     },
   });
+
+  const rawPhone = storeSettings?.whatsapp || "5531987984668";
+  const storeAddress =
+    storeSettings?.address || "Av. Raja Gabaglia, 2000 - Estoril, Belo Horizonte - MG";
+  const whatsappUrl = `https://wa.me/${rawPhone.replace(/\D/g, "")}`;
+
+  const formattedPhone = useMemo(() => {
+    const digits = rawPhone.replace(/\D/g, "");
+    if (digits.length === 13 && digits.startsWith("55")) {
+      return `(${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+    }
+    if (digits.length === 11) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    }
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    }
+    return "(31) 98798-4668";
+  }, [rawPhone]);
+
+  const brandCounts = useMemo(() => {
+    if (!vehicles) return {};
+    const counts: Record<string, number> = {};
+    vehicles
+      .filter(
+        (v) => v.is_published === true && (v.status === "available" || v.status === "maintenance"),
+      )
+      .forEach((v) => {
+        if (v.brand) counts[v.brand] = (counts[v.brand] || 0) + 1;
+      });
+    return counts;
+  }, [vehicles]);
 
   const filteredVehicles = useMemo(() => {
     if (!vehicles) return [];
 
-    return vehicles.filter((v) => {
+    const list = vehicles.filter((v) => {
       const isPublished = v.is_published === true;
       const isAvailable = v.status === "available" || v.status === "maintenance";
       if (!isPublished || !isAvailable) return false;
@@ -106,7 +157,14 @@ function LandingPage() {
 
       return matchesSearch && matchesBrand && matchesPrice && matchesYear && matchesMileage;
     });
-  }, [vehicles, filterValues]);
+
+    return list.sort((a, b) => {
+      if (sortBy === "price-asc") return (a.asking_price || 0) - (b.asking_price || 0);
+      if (sortBy === "price-desc") return (b.asking_price || 0) - (a.asking_price || 0);
+      if (sortBy === "km-asc") return (a.mileage || 0) - (b.mileage || 0);
+      return 0;
+    });
+  }, [vehicles, filterValues, sortBy]);
 
   const brands = useMemo(() => {
     if (!vehicles) return [];
@@ -115,8 +173,6 @@ function LandingPage() {
     ) as string[];
     return uniqueBrands.sort();
   }, [vehicles]);
-
-  const whatsappUrl = `https://wa.me/${whatsappSetting || "5531987984668"}`;
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
@@ -177,10 +233,10 @@ function LandingPage() {
             <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
               <Button
                 size="sm"
-                className="hidden sm:flex bg-gradient-primary shadow-elegant text-white hover:opacity-90 transition-opacity rounded-xl"
+                className="hidden sm:flex bg-[#25D366] hover:bg-[#20bd5a] shadow-elegant text-white rounded-xl font-bold gap-2 px-3.5 transition-all hover:scale-105"
               >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                WhatsApp
+                <WhatsAppLogo className="h-4 w-4" />
+                <span>{formattedPhone}</span>
               </Button>
             </a>
             <Link to="/login">
@@ -196,109 +252,313 @@ function LandingPage() {
         </div>
       </header>
 
-      {/* ── HERO ── */}
-      <section className="relative pt-36 pb-32 lg:pt-48 lg:pb-56 overflow-hidden">
-        {/* Background effects */}
+      {/* ── HERO COMPACTO + BUSCA INTELIGENTE (1ª DOBRA IMEDIATA) ── */}
+      <section className="relative pt-24 pb-8 md:pt-28 md:pb-10 overflow-hidden border-b border-white/5 bg-gradient-to-b from-card/40 via-background to-background">
+        {/* Background glow effects */}
         <div className="absolute inset-0 -z-10 bg-gradient-hero" />
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-primary/8 rounded-full blur-[140px] animate-float" />
-          <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-gold/6 rounded-full blur-[100px] animate-float [animation-delay:3s]" />
+        <div className="absolute inset-0 -z-10 pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-primary/6 rounded-full blur-[140px] animate-float" />
+          <div className="absolute bottom-0 right-1/4 w-[350px] h-[350px] bg-gold/5 rounded-full blur-[100px] animate-float [animation-delay:3s]" />
         </div>
-        {/* Grid pattern */}
-        <div
-          className="absolute inset-0 -z-10 opacity-[0.03]"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px)`,
-            backgroundSize: "60px 60px",
-          }}
-        />
 
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <FadeIn direction="down" distance={20}>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/25 bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-10">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-              </span>
-              Novidades em estoque toda semana
-            </div>
-          </FadeIn>
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+            <FadeIn direction="down" distance={15}>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/25 bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider mb-3">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                </span>
+                Seminovos revisados em Belo Horizonte
+              </div>
+              <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight">
+                Encontre seu <span className="text-gradient-primary">próximo carro</span> hoje
+              </h1>
+            </FadeIn>
 
-          <FadeIn delay={0.1}>
-            <h1 className="font-display text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-black tracking-tight mb-8 leading-[1.05]">
-              Seu próximo <span className="text-gradient-primary italic text-glow-red">carro</span>
-              <br />
-              está aqui!
-            </h1>
-          </FadeIn>
+            <FadeIn direction="up" delay={0.1}>
+              <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground bg-card/60 px-4 py-2 rounded-xl border border-white/10 w-fit backdrop-blur-sm">
+                <Car className="h-4 w-4 text-primary" />
+                <span>
+                  <strong className="text-foreground">{filteredVehicles.length}</strong>{" "}
+                  {filteredVehicles.length === 1 ? "veículo disponível" : "veículos disponíveis"}{" "}
+                  para pronta entrega
+                </span>
+              </div>
+            </FadeIn>
+          </div>
 
-          <FadeIn delay={0.2}>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-12 leading-relaxed">
-              Qualidade, transparência e as melhores condições de financiamento do mercado. Sua
-              jornada para o veículo perfeito começa aqui.
-            </p>
-          </FadeIn>
-
-          <FadeIn delay={0.3}>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button
-                size="lg"
-                className="bg-gradient-primary shadow-elegant h-14 px-10 rounded-2xl text-lg font-bold hover:scale-105 transition-transform duration-200 text-white"
-                asChild
-              >
-                <a href="#estoque">
-                  Explorar estoque <ChevronRight className="ml-2 h-5 w-5" />
-                </a>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="h-14 px-10 rounded-2xl text-lg font-bold border-white/10 hover:bg-white/5 hover:border-white/20"
-                asChild
-              >
-                <a href="#contato">Falar com corretor</a>
-              </Button>
-            </div>
-          </FadeIn>
-
-          {/* Stats bar */}
-          <FadeIn delay={0.5}>
-            <div className="mt-20 grid grid-cols-3 gap-8 max-w-lg mx-auto">
-              {[
-                { value: "100%", label: "Procedência" },
-                { value: "5★", label: "Avaliação" },
-                { value: "BH", label: "Localização" },
-              ].map((stat) => (
-                <div key={stat.label} className="text-center">
-                  <div className="font-display text-2xl font-black text-gradient-primary">
-                    {stat.value}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1 font-medium uppercase tracking-wider">
-                    {stat.label}
-                  </div>
+          {/* BARRA DE PESQUISA RÁPIDA */}
+          <FadeIn delay={0.15}>
+            <div className="bg-card/70 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-elegant">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3">
+                {/* Campo Busca Texto */}
+                <div className="sm:col-span-2 md:col-span-5 relative">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Digite o modelo ou marca (ex: City, Sandero, Palio, XJ6)..."
+                    className="pl-10 h-12 bg-background/60 border-white/10 rounded-xl text-sm"
+                    value={filterValues.search}
+                    onChange={(e) => setFilterValues((p) => ({ ...p, search: e.target.value }))}
+                  />
+                  {filterValues.search && (
+                    <button
+                      onClick={() => setFilterValues((p) => ({ ...p, search: "" }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-              ))}
+
+                {/* Filtro Marca */}
+                <div className="md:col-span-3">
+                  <Select
+                    value={filterValues.brand}
+                    onValueChange={(val) => setFilterValues((p) => ({ ...p, brand: val }))}
+                  >
+                    <SelectTrigger className="h-12 bg-background/60 border-white/10 rounded-xl text-sm">
+                      <SelectValue placeholder="Todas as marcas" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-white/10">
+                      <SelectItem value="all">Todas as marcas</SelectItem>
+                      {brands.map((b) => (
+                        <SelectItem key={b} value={b}>
+                          {b} {brandCounts[b] ? `(${brandCounts[b]})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filtro Faixa de Preço */}
+                <div className="md:col-span-2">
+                  <Select
+                    value={filterValues.maxPrice || "all"}
+                    onValueChange={(val) =>
+                      setFilterValues((p) => ({ ...p, maxPrice: val === "all" ? "" : val }))
+                    }
+                  >
+                    <SelectTrigger className="h-12 bg-background/60 border-white/10 rounded-xl text-sm">
+                      <SelectValue placeholder="Qualquer valor" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-white/10">
+                      <SelectItem value="all">Qualquer valor</SelectItem>
+                      <SelectItem value="30000">Até R$ 30.000</SelectItem>
+                      <SelectItem value="40000">Até R$ 40.000</SelectItem>
+                      <SelectItem value="50000">Até R$ 50.000</SelectItem>
+                      <SelectItem value="75000">Até R$ 75.000</SelectItem>
+                      <SelectItem value="100000">Até R$ 100.000</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Botão de Ação / Limpar */}
+                <div className="md:col-span-2 flex items-center gap-2">
+                  {filterValues.search ||
+                  filterValues.brand !== "all" ||
+                  filterValues.maxPrice ||
+                  filterValues.maxMileage ? (
+                    <Button
+                      variant="outline"
+                      className="w-full h-12 rounded-xl border-white/15 hover:bg-white/5 gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={() =>
+                        setFilterValues({
+                          search: "",
+                          brand: "all",
+                          minPrice: "",
+                          maxPrice: "",
+                          minYear: "",
+                          maxYear: "",
+                          maxMileage: "",
+                        })
+                      }
+                    >
+                      <X className="h-4 w-4" /> Limpar filtros
+                    </Button>
+                  ) : (
+                    <a href="#estoque" className="w-full">
+                      <Button className="w-full h-12 bg-gradient-primary text-white rounded-xl font-bold shadow-elegant hover:opacity-95 transition-opacity gap-2">
+                        <Flame className="h-4 w-4" /> Ver Estoque
+                      </Button>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Chips de Filtros Rápidos */}
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5 overflow-x-auto text-xs pb-1 custom-scrollbar">
+                <span className="text-muted-foreground font-semibold whitespace-nowrap">
+                  Filtros rápidos:
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFilterValues((p) => ({ ...p, maxPrice: "", brand: "all", maxMileage: "" }))
+                  }
+                  className={cn(
+                    "px-3 py-1.5 rounded-full border whitespace-nowrap transition-all",
+                    !filterValues.maxPrice &&
+                      filterValues.brand === "all" &&
+                      !filterValues.maxMileage
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white/5 hover:bg-white/10 text-muted-foreground border-white/10",
+                  )}
+                >
+                  Todos (
+                  {vehicles?.filter(
+                    (v) =>
+                      v.is_published && (v.status === "available" || v.status === "maintenance"),
+                  ).length || 0}
+                  )
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterValues((p) => ({ ...p, maxPrice: "35000" }))}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full border whitespace-nowrap transition-all",
+                    filterValues.maxPrice === "35000"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white/5 hover:bg-white/10 text-muted-foreground border-white/10",
+                  )}
+                >
+                  Até R$ 35 mil
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterValues((p) => ({ ...p, maxPrice: "50000" }))}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full border whitespace-nowrap transition-all",
+                    filterValues.maxPrice === "50000"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white/5 hover:bg-white/10 text-muted-foreground border-white/10",
+                  )}
+                >
+                  Até R$ 50 mil
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterValues((p) => ({ ...p, maxMileage: "80000" }))}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full border whitespace-nowrap transition-all",
+                    filterValues.maxMileage === "80000"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white/5 hover:bg-white/10 text-muted-foreground border-white/10",
+                  )}
+                >
+                  Até 80.000 km
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterValues((p) => ({ ...p, maxMileage: "50000" }))}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full border whitespace-nowrap transition-all",
+                    filterValues.maxMileage === "50000"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white/5 hover:bg-white/10 text-muted-foreground border-white/10",
+                  )}
+                >
+                  Menos de 50.000 km
+                </button>
+              </div>
             </div>
           </FadeIn>
         </div>
       </section>
 
-      {/* ── DIFERENCIAIS / SOBRE ── */}
-      <section id="sobre" className="py-28 relative border-t border-white/5">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-primary/3 via-transparent to-transparent" />
+      {/* ── ESTOQUE IMEDIATO (LOGO NA PRIMEIRA TELA) ── */}
+      <section id="estoque" className="py-12 md:py-16">
         <div className="max-w-7xl mx-auto px-6">
-          <FadeIn className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gold/25 bg-gold/10 text-gold text-xs font-bold uppercase tracking-widest mb-6">
-              <Star className="h-3 w-3" />
-              Por que escolher a MRM
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <h2 className="font-display text-2xl md:text-3xl font-black tracking-tight flex items-center gap-2">
+                <Flame className="h-6 w-6 text-primary" />
+                Veículos em <span className="text-gradient-primary">Destaque</span>
+              </h2>
+              <p className="text-muted-foreground text-sm mt-1">
+                Veículos selecionados, periciados e prontos para entrega imediata.
+              </p>
             </div>
-            <h2 className="font-display text-4xl md:text-5xl font-black mb-4">
+
+            <div className="flex items-center gap-3 self-end sm:self-auto">
+              <span className="text-xs text-muted-foreground font-medium hidden sm:inline">
+                Ordenar por:
+              </span>
+              <Select
+                value={sortBy}
+                onValueChange={(val: "recent" | "price-asc" | "price-desc" | "km-asc") =>
+                  setSortBy(val)
+                }
+              >
+                <SelectTrigger className="w-[170px] h-10 bg-card border-white/10 text-xs rounded-xl">
+                  <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                  <SelectValue placeholder="Mais recentes" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-white/10 text-xs">
+                  <SelectItem value="recent">Mais recentes</SelectItem>
+                  <SelectItem value="price-asc">Menor preço</SelectItem>
+                  <SelectItem value="price-desc">Maior preço</SelectItem>
+                  <SelectItem value="km-asc">Menor quilometragem</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {isLoading
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-[420px] rounded-2xl shimmer" />
+                ))
+              : filteredVehicles.map((v) => (
+                  <VehicleCard key={v.id} vehicle={v} whatsappUrl={whatsappUrl} />
+                ))}
+            {!isLoading && filteredVehicles.length === 0 && (
+              <div className="col-span-full text-center py-20 bg-card/30 rounded-2xl border border-white/5">
+                <Car className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                <p className="text-muted-foreground mb-4 font-medium">
+                  Nenhum veículo encontrado com os filtros selecionados.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setFilterValues({
+                      search: "",
+                      brand: "all",
+                      minPrice: "",
+                      maxPrice: "",
+                      minYear: "",
+                      maxYear: "",
+                      maxMileage: "",
+                    })
+                  }
+                  className="border-white/10 hover:bg-white/5 rounded-xl"
+                >
+                  Limpar todos os filtros
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── DIFERENCIAIS / SOBRE A MRM (APÓS O ESTOQUE) ── */}
+      <section
+        id="sobre"
+        className="py-20 relative border-t border-white/5 bg-gradient-to-b from-card/30 via-background to-background"
+      >
+        <div className="max-w-7xl mx-auto px-6">
+          <FadeIn className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gold/25 bg-gold/10 text-gold text-xs font-bold uppercase tracking-widest mb-4">
+              <Star className="h-3 w-3" />
+              Por que escolher a MRM Automóveis
+            </div>
+            <h2 className="font-display text-3xl md:text-4xl font-black mb-3">
               Nossos <span className="text-gradient-gold">Diferenciais</span>
             </h2>
-            <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-              Mais do que vender carros — oferecemos uma experiência completa e segura do início ao
-              fim.
+            <p className="text-muted-foreground text-base max-w-xl mx-auto">
+              Compre com segurança, laudo 100% aprovado e as menores taxas de financiamento de BH.
             </p>
           </FadeIn>
 
@@ -348,9 +608,7 @@ function LandingPage() {
               },
             ].map((item, i) => (
               <FadeIn key={i}>
-                <div
-                  className={`group relative p-6 rounded-2xl border bg-card/40 backdrop-blur-sm hover:bg-card/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-card cursor-default`}
-                >
+                <div className="group relative p-6 rounded-2xl border bg-card/40 backdrop-blur-sm hover:bg-card/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-card cursor-default">
                   <div
                     className={`w-12 h-12 rounded-xl ${item.bg} border flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}
                   >
@@ -365,137 +623,127 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* ── ESTOQUE ── */}
-      <section id="estoque" className="py-24 border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-6">
-          <FadeIn className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
-            <div>
-              <h2 className="font-display text-3xl md:text-4xl font-black mb-2">
-                Nosso <span className="text-gradient-primary">Estoque</span>
-              </h2>
-              <p className="text-muted-foreground">
-                Veículos selecionados, revisados e prontos para você.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-card/60 px-4 py-2 rounded-full border border-white/10">
-              <Car className="h-4 w-4 text-primary" />
-              <span className="font-bold text-foreground">{filteredVehicles.length}</span>{" "}
-              {filteredVehicles.length === 1 ? "veículo disponível" : "veículos disponíveis"}
-            </div>
-          </FadeIn>
-
-          <VehicleFilters brands={brands} onFilterChange={setFilterValues} />
-
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {isLoading
-              ? Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="h-[420px] rounded-2xl shimmer" />
-                ))
-              : filteredVehicles.map((v) => (
-                  <VehicleCard key={v.id} vehicle={v} whatsappUrl={whatsappUrl} />
-                ))}
-            {!isLoading && filteredVehicles.length === 0 && (
-              <div className="col-span-full text-center py-20 bg-card/30 rounded-2xl border border-white/5">
-                <Car className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-                <p className="text-muted-foreground mb-4">
-                  Nenhum veículo encontrado com os filtros selecionados.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setFilterValues({
-                      search: "",
-                      brand: "all",
-                      minPrice: "",
-                      maxPrice: "",
-                      minYear: "",
-                      maxYear: "",
-                      maxMileage: "",
-                    })
-                  }
-                  className="border-white/10 hover:bg-white/5"
-                >
-                  Limpar filtros
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
       {/* ── VENDA SEU CARRO ── */}
       <SellCarSection whatsappUrl={whatsappUrl} />
 
       {/* ── CONTATO ── */}
-      <section id="contato" className="py-28 border-t border-white/5 relative">
+      <section id="contato" className="py-24 border-t border-white/5 relative">
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-primary/5 via-transparent to-transparent" />
-        <div className="max-w-5xl mx-auto px-6">
-          <FadeIn className="text-center mb-16">
-            <h2 className="font-display text-4xl md:text-5xl font-black mb-4">
-              Vamos <span className="text-gradient-primary">conversar?</span>
+        <div className="max-w-6xl mx-auto px-6">
+          <FadeIn className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/25 bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider mb-4">
+              <Phone className="h-3.5 w-3.5" />
+              Canais de Atendimento
+            </div>
+            <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-black mb-3">
+              Fale com a <span className="text-gradient-primary">MRM Automóveis</span>
             </h2>
-            <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-              Entre em contato agora e encontre o carro dos seus sonhos com a nossa ajuda.
+            <p className="text-muted-foreground text-base max-w-xl mx-auto">
+              Tire dúvidas sobre veículos, faça uma simulação de financiamento ou venha nos visitar.
             </p>
           </FadeIn>
 
-          <div className="grid md:grid-cols-3 gap-5 mb-10">
-            {[
-              {
-                icon: MessageCircle,
-                label: "WhatsApp",
-                value: "(31) 98798-4668",
-                href: whatsappUrl,
-                color: "text-emerald-400",
-                bg: "bg-emerald-500/10 border-emerald-500/20",
-              },
-              {
-                icon: MapPin,
-                label: "Localização",
-                value: "Belo Horizonte, MG",
-                href: "https://maps.google.com/?q=Belo+Horizonte",
-                color: "text-blue-400",
-                bg: "bg-blue-500/10 border-blue-500/20",
-              },
-              {
-                icon: Phone,
-                label: "Telefone",
-                value: "(31) 98798-4668",
-                href: "tel:+5531987984668",
-                color: "text-amber-400",
-                bg: "bg-amber-500/10 border-amber-500/20",
-              },
-            ].map((item, i) => (
-              <FadeIn key={i} delay={i * 0.1}>
-                <a
-                  href={item.href}
-                  target={item.href.startsWith("http") ? "_blank" : undefined}
-                  rel="noopener noreferrer"
-                  className="group flex flex-col items-center text-center p-6 rounded-2xl bg-card/40 border border-white/5 hover:bg-card/70 hover:border-white/10 transition-all duration-300 hover:-translate-y-1"
-                >
-                  <div
-                    className={`w-12 h-12 rounded-xl ${item.bg} border flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}
-                  >
-                    <item.icon className={`w-6 h-6 ${item.color}`} />
+          <div className="grid md:grid-cols-3 gap-6 mb-12">
+            {/* Card 1: WhatsApp */}
+            <FadeIn delay={0.1}>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex flex-col p-6 rounded-3xl bg-card/50 border border-white/10 hover:border-[#25D366]/40 hover:bg-card/80 transition-all duration-300 hover:-translate-y-1 hover:shadow-card h-full"
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-13 h-13 rounded-2xl bg-[#25D366]/15 border border-[#25D366]/30 flex items-center justify-center group-hover:scale-110 transition-transform p-3">
+                    <WhatsAppLogo className="w-7 h-7 text-[#25D366]" />
                   </div>
-                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">
-                    {item.label}
-                  </p>
-                  <p className="font-bold text-foreground">{item.value}</p>
-                </a>
-              </FadeIn>
-            ))}
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20">
+                    Online agora
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">
+                  WhatsApp Oficial
+                </p>
+                <p className="font-display font-extrabold text-2xl text-foreground group-hover:text-[#25D366] transition-colors mb-2">
+                  {formattedPhone}
+                </p>
+                <p className="text-xs text-muted-foreground mt-auto">
+                  Clique aqui para iniciar uma conversa direta com nossa equipe de vendas.
+                </p>
+              </a>
+            </FadeIn>
+
+            {/* Card 2: Endereço da Loja */}
+            <FadeIn delay={0.2}>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeAddress || "Belo Horizonte MG")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex flex-col p-6 rounded-3xl bg-card/50 border border-white/10 hover:border-blue-500/40 hover:bg-card/80 transition-all duration-300 hover:-translate-y-1 hover:shadow-card h-full"
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-13 h-13 rounded-2xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center group-hover:scale-110 transition-transform p-3">
+                    <MapPin className="w-7 h-7 text-blue-400" />
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    Como Chegar
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">
+                  Endereço da Loja
+                </p>
+                <p className="font-display font-bold text-lg text-foreground group-hover:text-blue-400 transition-colors mb-2 leading-snug">
+                  {storeAddress || "Belo Horizonte - MG"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-auto">
+                  Venha tomar um café conosco e conhecer nosso estoque de perto.
+                </p>
+              </a>
+            </FadeIn>
+
+            {/* Card 3: Horário de Funcionamento */}
+            <FadeIn delay={0.3}>
+              <div className="flex flex-col p-6 rounded-3xl bg-card/50 border border-white/10 h-full">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-13 h-13 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center p-3">
+                    <Clock className="w-7 h-7 text-amber-400" />
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    Horários
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-2">
+                  Atendimento Presencial
+                </p>
+                <div className="space-y-1.5 text-xs text-muted-foreground mb-3">
+                  <div className="flex justify-between">
+                    <span>Segunda a Sexta:</span>
+                    <strong className="text-foreground">08:30 às 18:30</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Sábados:</span>
+                    <strong className="text-foreground">08:30 às 14:00</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Domingos e Feriados:</span>
+                    <strong className="text-foreground">Plantão WhatsApp</strong>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground/70 mt-auto">
+                  Agendamentos especiais disponíveis via WhatsApp.
+                </p>
+              </div>
+            </FadeIn>
           </div>
 
-          <FadeIn delay={0.3} className="text-center">
+          {/* Botão de Destaque WhatsApp */}
+          <FadeIn delay={0.4} className="text-center">
             <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
               <Button
                 size="lg"
-                className="bg-gradient-primary shadow-elegant h-16 px-14 rounded-2xl text-lg font-bold hover:scale-105 transition-transform duration-200 text-white"
+                className="bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-elegant h-16 px-10 rounded-2xl text-base sm:text-lg font-extrabold hover:scale-105 transition-all duration-200 gap-3"
               >
-                <MessageCircle className="mr-3 h-6 w-6" />
-                Iniciar conversa no WhatsApp
+                <WhatsAppLogo className="h-6 w-6" />
+                <span>Conversar no WhatsApp: {formattedPhone}</span>
               </Button>
             </a>
           </FadeIn>
@@ -503,16 +751,35 @@ function LandingPage() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="py-10 border-t border-white/5 bg-card/20">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <Link to="/" className="flex items-center gap-2.5">
-            <LogoIcon className="w-8 h-8 rounded-lg shadow-elegant" />
-            <span className="font-display font-bold text-lg tracking-tight">
-              MRM <span className="text-gradient-primary">AUTOMÓVEIS</span>
-            </span>
-          </Link>
-          <div className="text-sm text-muted-foreground">
-            &copy; 2026 MRM AUTOMÓVEIS. Todos os direitos reservados.
+      <footer className="py-12 border-t border-white/5 bg-card/30">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <Link to="/" className="flex items-center gap-2.5">
+              <LogoIcon className="w-8 h-8 rounded-lg shadow-elegant" />
+              <span className="font-display font-bold text-lg tracking-tight">
+                MRM <span className="text-gradient-primary">AUTOMÓVEIS</span>
+              </span>
+            </Link>
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span>{storeAddress || "Belo Horizonte, MG"}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#25D366]/15 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all text-sm font-bold shadow-sm"
+            >
+              <WhatsAppLogo className="h-4 w-4" />
+              <span>{formattedPhone}</span>
+            </a>
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            &copy; {new Date().getFullYear()} MRM AUTOMÓVEIS. Todos os direitos reservados.
           </div>
         </div>
       </footer>
@@ -642,7 +909,15 @@ function FavoritesBadge() {
   );
 }
 
-function FavoritesList({ vehicles, whatsappUrl }: { vehicles: any[]; whatsappUrl: string }) {
+type PublicVehicle = VehicleCardProps["vehicle"];
+
+function FavoritesList({
+  vehicles,
+  whatsappUrl,
+}: {
+  vehicles: PublicVehicle[];
+  whatsappUrl: string;
+}) {
   const { favorites, toggleFavorite } = useFavorites();
 
   if (!vehicles) return <div className="py-8 text-center text-muted-foreground">Carregando...</div>;

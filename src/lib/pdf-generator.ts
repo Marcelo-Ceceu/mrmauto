@@ -3,8 +3,9 @@ import "jspdf-autotable";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { brl } from "./format";
+import type { Tables } from "@/integrations/supabase/types";
 
-export const generateSaleContract = (vehicle: any) => {
+export const generateSaleContract = (vehicle: Tables<"vehicles">) => {
   const doc = new jsPDF();
 
   // Header

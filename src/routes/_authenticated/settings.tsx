@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { MessageCircle, Save, Loader2 } from "lucide-react";
+import { MessageCircle, Save, Loader2, MapPin } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -16,6 +16,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 function SettingsPage() {
   const queryClient = useQueryClient();
   const [whatsapp, setWhatsapp] = useState("");
+  const [address, setAddress] = useState("");
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["settings"],
@@ -30,20 +31,35 @@ function SettingsPage() {
     if (settings) {
       const waSetting = settings.find((s) => s.key === "whatsapp_number");
       if (waSetting) setWhatsapp(waSetting.value);
+
+      const addrSetting = settings.find((s) => s.key === "store_address");
+      if (addrSetting) setAddress(addrSetting.value);
     }
   }, [settings]);
 
   const mutation = useMutation({
-    mutationFn: async (newValue: string) => {
-      const { error } = await supabase
-        .from("settings")
-        .upsert({ key: "whatsapp_number", value: newValue });
-      if (error) throw error;
+    mutationFn: async ({
+      newWhatsapp,
+      newAddress,
+    }: {
+      newWhatsapp: string;
+      newAddress: string;
+    }) => {
+      const updates = [
+        supabase.from("settings").upsert({ key: "whatsapp_number", value: newWhatsapp }),
+        supabase.from("settings").upsert({ key: "store_address", value: newAddress }),
+      ];
+      const results = await Promise.all(updates);
+      for (const res of results) {
+        if (res.error) throw res.error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: ["store-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-setting"] });
       toast.success("Configurações salvas", {
-        description: "O número do WhatsApp foi atualizado com sucesso.",
+        description: "Os dados de contato e endereço foram atualizados com sucesso.",
       });
     },
     onError: (error) => {
@@ -54,8 +70,7 @@ function SettingsPage() {
   });
 
   const handleSave = () => {
-    // Remove non-numeric characters for storage if needed, but keeping simple for now
-    mutation.mutate(whatsapp);
+    mutation.mutate({ newWhatsapp: whatsapp, newAddress: address });
   };
 
   if (isLoading) {
@@ -98,8 +113,25 @@ function SettingsPage() {
               Insira apenas números, começando pelo código do país (55 para Brasil).
             </p>
           </div>
+
+          <div className="space-y-2 pt-2 border-t border-border/50">
+            <Label htmlFor="address" className="flex items-center gap-1.5">
+              <MapPin className="h-4 w-4 text-primary" />
+              Endereço da Loja
+            </Label>
+            <Input
+              id="address"
+              placeholder="Ex: Av. Raja Gabaglia, 2000 - Estoril, Belo Horizonte - MG"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Este endereço será exibido na seção de contato e no rodapé do site.
+            </p>
+          </div>
+
           <Button
-            className="w-full sm:w-auto bg-gradient-gold text-gold-foreground"
+            className="w-full sm:w-auto bg-gradient-gold text-gold-foreground mt-2"
             onClick={handleSave}
             disabled={mutation.isPending}
           >

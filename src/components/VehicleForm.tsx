@@ -16,6 +16,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -191,10 +192,10 @@ export function VehicleForm({
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
-  const handleDragEnd = (event: any) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       const oldIndex = f.photos.indexOf(active.id as string);
@@ -251,14 +252,14 @@ export function VehicleForm({
 
         const padding = fontSize * 0.5;
         const textWidth = ctx.measureText(text).width;
-        
+
         // Fundo escuro semi-transparente
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
         ctx.fillRect(
           canvas.width - textWidth - padding * 2 - 20,
           canvas.height - fontSize - padding * 2 - 20,
           textWidth + padding * 2,
-          fontSize + padding * 2
+          fontSize + padding * 2,
         );
 
         // Texto branco sólido
@@ -280,7 +281,7 @@ export function VehicleForm({
             resolve(new File([blob], file.name, { type: "image/jpeg" }));
           },
           "image/jpeg",
-          0.9
+          0.9,
         );
         URL.revokeObjectURL(url);
       };
@@ -315,7 +316,9 @@ export function VehicleForm({
 
         const ext = watermarkedFile.name.split(".").pop() || "jpg";
         const path = `${userData.user.id}/${crypto.randomUUID()}.${ext}`;
-        const { error } = await supabase.storage.from("vehicle-photos").upload(path, watermarkedFile);
+        const { error } = await supabase.storage
+          .from("vehicle-photos")
+          .upload(path, watermarkedFile);
         if (error) {
           toast.error(`Erro ao enviar ${file.name}`);
           continue;
@@ -353,7 +356,11 @@ export function VehicleForm({
         {/* Photos */}
         <Section title="Fotos">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
               <SortableContext items={f.photos} strategy={rectSortingStrategy}>
                 {f.photos.map((url, i) => (
                   <SortablePhoto key={url} url={url} id={url} onRemove={() => removePhoto(i)} />
@@ -528,13 +535,13 @@ export function VehicleForm({
                 label={
                   <div className="flex items-center justify-between w-full">
                     <span>Valor real de venda (R$)</span>
-                    <FipeModal 
+                    <FipeModal
                       onApplyPrice={(data) => {
                         update("asking_price", data.price);
                         if (data.brand) update("brand", data.brand);
                         if (data.model) update("model", data.model);
                         if (data.year) update("year", data.year);
-                      }} 
+                      }}
                       initialBrand={f.brand}
                       initialModel={f.model}
                       initialYear={f.year}
@@ -1454,7 +1461,15 @@ function Grid({ children }: { children: ReactNode }) {
   return <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{children}</div>;
 }
 
-function Field({ label, children, full }: { label: ReactNode; children: ReactNode; full?: boolean }) {
+function Field({
+  label,
+  children,
+  full,
+}: {
+  label: ReactNode;
+  children: ReactNode;
+  full?: boolean;
+}) {
   return (
     <div className={cn(full ? "sm:col-span-2 lg:col-span-3" : "", "space-y-2")}>
       <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
@@ -1465,7 +1480,15 @@ function Field({ label, children, full }: { label: ReactNode; children: ReactNod
   );
 }
 
-export function SortablePhoto({ url, id, onRemove }: { url: string; id: string; onRemove: () => void }) {
+export function SortablePhoto({
+  url,
+  id,
+  onRemove,
+}: {
+  url: string;
+  id: string;
+  onRemove: () => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
 
   const style = {
@@ -1479,7 +1502,11 @@ export function SortablePhoto({ url, id, onRemove }: { url: string; id: string; 
       style={style}
       className="aspect-square relative rounded-lg overflow-hidden border group bg-background"
     >
-      <div {...attributes} {...listeners} className="w-full h-full cursor-grab active:cursor-grabbing outline-none">
+      <div
+        {...attributes}
+        {...listeners}
+        className="w-full h-full cursor-grab active:cursor-grabbing outline-none"
+      >
         <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" />
       </div>
       <button

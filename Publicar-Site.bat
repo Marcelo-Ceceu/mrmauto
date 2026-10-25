@@ -13,11 +13,11 @@ call npx vercel login
 
 echo.
 echo ========================================================
-echo Passo 2: Agora vamos enviar o codigo do site.
+echo Passo 2: Agora vamos enviar o codigo do site para PRODUCAO.
 echo Nas proximas perguntas, basta apertar a tecla ENTER para aceitar todas as configuracoes padrao.
 echo.
 pause
-call npx vercel
+call npx vercel --prod
 
 echo.
 echo ========================================================

@@ -1,13 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, Search, Car } from "lucide-react";
+import { Plus, Search, Car, Handshake, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { brl, fmtDate } from "@/lib/format";
+import { isVehicleConsigned } from "@/lib/consignment";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/vehicles/")({
   head: () => ({ meta: [{ title: "Veículos — MRM AUTOMÓVEIS" }] }),
@@ -18,24 +20,34 @@ async function fetchVehicles() {
   const { data, error } = await supabase
     .from("vehicles")
     .select(
-      "id, brand, model, year, mileage, purchase_price, sale_price, status, photos, plate, sale_date, purchase_date",
+      "id, brand, model, year, mileage, purchase_price, sale_price, status, photos, plate, sale_date, purchase_date, notes",
     )
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
 
+type VehicleFilter = "all" | "available" | "consigned" | "store" | "maintenance" | "sold";
+
 function VehiclesList() {
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "available" | "sold" | "maintenance">("all");
+  const [filter, setFilter] = useState<VehicleFilter>("all");
   const { data, isLoading } = useQuery({ queryKey: ["vehicles"], queryFn: fetchVehicles });
 
   const filtered = (data ?? []).filter((v) => {
-    if (filter !== "all" && v.status !== filter) return false;
+    const isConsigned = isVehicleConsigned(v);
+    if (filter === "consigned" && !isConsigned) return false;
+    if (filter === "store" && isConsigned) return false;
+    if (filter === "available" && v.status !== "available") return false;
+    if (filter === "maintenance" && v.status !== "maintenance") return false;
+    if (filter === "sold" && v.status !== "sold") return false;
     if (!q) return true;
     const t = q.toLowerCase();
     return [v.brand, v.model, v.plate].some((x) => x?.toLowerCase().includes(t));
   });
+
+  const consignedCount = (data ?? []).filter(isVehicleConsigned).length;
+  const storeCount = (data ?? []).length - consignedCount;
 
   return (
     <div className="p-6 lg:p-10 space-y-6 max-w-7xl mx-auto">
@@ -43,7 +55,7 @@ function VehiclesList() {
         <div>
           <h1 className="font-display text-4xl font-bold tracking-tight">Veículos</h1>
           <p className="text-muted-foreground mt-1">
-            {(data ?? []).length} veículo(s) cadastrado(s).
+            {(data ?? []).length} veículo(s) cadastrado(s) · {storeCount} próprio(s) · {consignedCount} consignado(s).
           </p>
         </div>
         <Link to="/vehicles/new">
@@ -65,19 +77,22 @@ function VehiclesList() {
           />
         </div>
         <div className="flex gap-1 bg-muted p-1 rounded-lg overflow-x-auto">
-          {(["all", "available", "maintenance", "sold"] as const).map((f) => (
+          {[
+            { id: "all", label: "Todos" },
+            { id: "available", label: "Disponíveis" },
+            { id: "consigned", label: `🤝 Consignados (${consignedCount})` },
+            { id: "store", label: `🚗 Próprios (${storeCount})` },
+            { id: "maintenance", label: "Manutenção" },
+            { id: "sold", label: "Vendidos" },
+          ].map((f) => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 text-sm rounded-md transition whitespace-nowrap ${filter === f ? "bg-card shadow-sm font-medium" : "text-muted-foreground"}`}
+              key={f.id}
+              onClick={() => setFilter(f.id as VehicleFilter)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition whitespace-nowrap ${
+                filter === f.id ? "bg-card shadow-sm font-medium text-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              {f === "all"
-                ? "Todos"
-                : f === "available"
-                  ? "Disponíveis"
-                  : f === "maintenance"
-                    ? "Manutenção"
-                    : "Vendidos"}
+              {f.label}
             </button>
           ))}
         </div>
@@ -92,77 +107,97 @@ function VehiclesList() {
       ) : filtered.length === 0 ? (
         <Card className="p-16 text-center">
           <Car className="h-12 w-12 mx-auto text-muted-foreground/40" />
-          <p className="mt-4 text-muted-foreground">Nenhum veículo encontrado.</p>
+          <p className="mt-4 text-muted-foreground">Nenhum veículo encontrado com esse filtro.</p>
           <Link to="/vehicles/new">
             <Button className="mt-4 bg-gradient-primary">Cadastrar primeiro veículo</Button>
           </Link>
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((v) => (
-            <Link key={v.id} to="/vehicles/$id" params={{ id: v.id }}>
-              <Card className="overflow-hidden hover:shadow-elegant transition-all hover:-translate-y-0.5 group cursor-pointer h-full">
-                <div className="aspect-[16/10] bg-muted relative overflow-hidden">
-                  {v.photos?.[0] ? (
-                    <img
-                      src={v.photos[0]}
-                      alt={`${v.brand} ${v.model}`}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-secondary">
-                      <Car className="h-12 w-12 text-muted-foreground/40" />
-                    </div>
-                  )}
-                  <Badge
-                    className="absolute top-3 right-3 shadow-elegant"
-                    variant={
-                      v.status === "sold"
-                        ? "default"
-                        : v.status === "maintenance"
-                          ? "destructive"
-                          : v.status === "reserved"
-                            ? "outline"
-                            : "secondary"
-                    }
-                  >
-                    {v.status === "sold"
-                      ? "Vendido"
-                      : v.status === "reserved"
-                        ? "Reservado"
-                        : v.status === "maintenance"
-                          ? "Em Manutenção"
-                          : "Disponível"}
-                  </Badge>
-                </div>
-                <div className="p-4 space-y-2">
-                  <div>
-                    <h3 className="font-display font-semibold text-lg leading-tight">
-                      {v.brand} {v.model}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      {v.year ?? "—"} ·{" "}
-                      {v.mileage ? `${v.mileage.toLocaleString("pt-BR")} km` : "—"}{" "}
-                      {v.plate && `· ${v.plate}`}
-                    </p>
+          {filtered.map((v) => {
+            const isConsigned = isVehicleConsigned(v);
+            return (
+              <Link key={v.id} to="/vehicles/$id" params={{ id: v.id }}>
+                <Card className="overflow-hidden hover:shadow-elegant transition-all hover:-translate-y-0.5 group cursor-pointer h-full">
+                  <div className="aspect-[16/10] bg-muted relative overflow-hidden">
+                    {v.photos?.[0] ? (
+                      <img
+                        src={v.photos[0]}
+                        alt={`${v.brand} ${v.model}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-secondary">
+                        <Car className="h-12 w-12 text-muted-foreground/40" />
+                      </div>
+                    )}
+                    {/* Badge Modalidade (Top Left) */}
+                    <Badge
+                      className={cn(
+                        "absolute top-3 left-3 shadow-elegant text-[10px] font-bold uppercase",
+                        isConsigned
+                          ? "bg-amber-600 text-white border-none"
+                          : "bg-zinc-900/80 text-zinc-200 border-zinc-700/60 backdrop-blur-sm",
+                      )}
+                    >
+                      {isConsigned ? "Consignado" : "Próprio"}
+                    </Badge>
+
+                    {/* Status Badge (Top Right) */}
+                    <Badge
+                      className="absolute top-3 right-3 shadow-elegant"
+                      variant={
+                        v.status === "sold"
+                          ? "default"
+                          : v.status === "maintenance"
+                            ? "destructive"
+                            : v.status === "reserved"
+                              ? "outline"
+                              : "secondary"
+                      }
+                    >
+                      {v.status === "sold"
+                        ? "Vendido"
+                        : v.status === "reserved"
+                          ? "Reservado"
+                          : v.status === "maintenance"
+                            ? "Em Manutenção"
+                            : "Disponível"}
+                    </Badge>
                   </div>
-                  <div className="pt-2 border-t flex items-end justify-between">
+                  <div className="p-4 space-y-2">
                     <div>
+                      <h3 className="font-display font-semibold text-lg leading-tight">
+                        {v.brand} {v.model}
+                      </h3>
                       <p className="text-xs text-muted-foreground">
-                        {v.status === "sold" ? "Vendido por" : "Investido"}
-                      </p>
-                      <p className="font-display font-bold text-lg">
-                        {brl(v.status === "sold" ? v.sale_price : v.purchase_price)}
+                        {v.year ?? "—"} ·{" "}
+                        {v.mileage ? `${v.mileage.toLocaleString("pt-BR")} km` : "—"}{" "}
+                        {v.plate && `· ${v.plate}`}
                       </p>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {fmtDate(v.status === "sold" ? v.sale_date : v.purchase_date)}
-                    </span>
+                    <div className="pt-2 border-t flex items-end justify-between">
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          {v.status === "sold"
+                            ? "Vendido por"
+                            : isConsigned
+                              ? "Entrada (Repasse)"
+                              : "Investido"}
+                        </p>
+                        <p className="font-display font-bold text-lg">
+                          {brl(v.status === "sold" ? v.sale_price : v.purchase_price)}
+                        </p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {fmtDate(v.status === "sold" ? v.sale_date : v.purchase_date)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </Card>
-            </Link>
-          ))}
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

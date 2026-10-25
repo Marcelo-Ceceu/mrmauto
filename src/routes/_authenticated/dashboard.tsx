@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { brl, fmtDate } from "@/lib/format";
+import { isVehicleConsigned } from "@/lib/consignment";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -56,6 +57,8 @@ type Vehicle = {
   is_trade_in: boolean;
   mileage: number | null;
   photos: string[] | null;
+  notes: string | null;
+  plate: string | null;
 };
 
 type Expense = { vehicle_id: string; amount: number; expense_date: string };
@@ -123,30 +126,47 @@ function Dashboard() {
     return acc;
   }, {});
 
-  const totalStock = vehicles.filter((v) => v.status !== "sold").length;
-  const totalSold = vehicles.filter((v) => v.status === "sold").length;
-  const totalInvested = vehicles.reduce(
-    (a, v) => a + Number(v.purchase_price) + (expByVehicle[v.id] ?? 0),
-    0,
-  );
-  const totalRevenue = vehicles
-    .filter((v) => v.status === "sold")
-    .reduce((a, v) => a + Number(v.sale_price ?? 0), 0);
+  const stockVehicles = vehicles.filter((v) => v.status !== "sold");
+  const soldVehicles = vehicles.filter((v) => v.status === "sold");
 
-  const totalProfit = vehicles
-    .filter((v) => v.status === "sold")
-    .reduce((a, v) => {
-      const cost = Number(v.purchase_price) + (expByVehicle[v.id] ?? 0);
-      return a + (Number(v.sale_price ?? 0) - cost);
-    }, 0);
+  const stockConsignedCount = stockVehicles.filter(isVehicleConsigned).length;
+  const stockOwnPropertyCount = stockVehicles.length - stockConsignedCount;
 
-  const projectedProfit = vehicles
-    .filter((v) => v.status !== "sold")
-    .reduce((a, v) => {
-      const cost = Number(v.purchase_price) + (expByVehicle[v.id] ?? 0);
-      const sale = v.asking_price ?? cost * (1 + Number(v.profit_margin_pct || 0) / 100);
-      return a + (sale - cost);
-    }, 0);
+  const totalStock = stockVehicles.length;
+  const totalSold = soldVehicles.length;
+
+  // Capital próprio investido pela loja no estoque:
+  // - Para veículos próprios: compra + despesas de preparação
+  // - Para consignados: apenas as despesas que saíram do bolso da loja (o veículo pertence ao cliente e o repasse é pós-venda)
+  const totalInvested = stockVehicles.reduce((a, v) => {
+    const isConsigned = isVehicleConsigned(v);
+    const expenses = expByVehicle[v.id] ?? 0;
+    return a + (isConsigned ? expenses : Number(v.purchase_price) + expenses);
+  }, 0);
+
+  // Valor total de repasse acordado dos veículos consignados em estoque
+  const totalConsignedStockValue = stockVehicles
+    .filter(isVehicleConsigned)
+    .reduce((a, v) => a + Number(v.purchase_price), 0);
+
+  const totalRevenue = soldVehicles.reduce((a, v) => a + Number(v.sale_price ?? 0), 0);
+
+  // Lucro Realizado das vendas concluídas:
+  // - Próprios: venda - (compra + despesas)
+  // - Consignados: venda - (repasse ao dono + despesas da loja)
+  const totalProfit = soldVehicles.reduce((a, v) => {
+    const cost = Number(v.purchase_price) + (expByVehicle[v.id] ?? 0);
+    return a + (Number(v.sale_price ?? 0) - cost);
+  }, 0);
+
+  // Previsão de Lucro do estoque ativo:
+  // - Próprios: (asking_price ou sugerido) - (compra + despesas)
+  // - Consignados: (asking_price ou sugerido) - (repasse + despesas)
+  const projectedProfit = stockVehicles.reduce((a, v) => {
+    const cost = Number(v.purchase_price) + (expByVehicle[v.id] ?? 0);
+    const sale = v.asking_price ?? cost * (1 + Number(v.profit_margin_pct || 0) / 100);
+    return a + (sale - cost);
+  }, 0);
 
   const totalToReceive = pendingInstallments.reduce((a, i) => a + Number(i.amount), 0);
   const tradeInStockValue = vehicles
@@ -255,16 +275,20 @@ function Dashboard() {
           icon={Car}
           label="Estoque Ativo"
           value={`${totalStock} veículos`}
-          sub={`${totalSold} vendidos no total`}
+          sub={`${stockOwnPropertyCount} próprios · ${stockConsignedCount} consignados`}
           tone="red"
         />
 
-        {/* Card 2: Total Investido */}
+        {/* Card 2: Capital Investido */}
         <StatCard
           icon={TrendingDown}
-          label="Total Investido"
+          label="Capital Investido"
           value={brl(totalInvested)}
-          sub="Compras e despesas do estoque"
+          sub={
+            stockConsignedCount > 0
+              ? `Próprios (+ ${brl(totalConsignedStockValue)} consignado)`
+              : "Compras e despesas do estoque"
+          }
           tone="zinc"
         />
 
@@ -276,7 +300,7 @@ function Dashboard() {
           sub={
             totalRevenue > 0
               ? `${((totalProfit / totalRevenue) * 100).toFixed(1)}% margem realizada`
-              : "Vendas concluídas"
+              : `${totalSold} vendas concluídas`
           }
           tone="emerald"
         />
@@ -286,7 +310,7 @@ function Dashboard() {
           icon={TrendingUp}
           label="Previsão de Lucro"
           value={brl(projectedProfit)}
-          sub="Potencial do estoque atual"
+          sub={`Potencial para ${totalStock} veículos em estoque`}
           tone="red"
         />
 
@@ -627,6 +651,7 @@ function Dashboard() {
         ) : (
           <div className="divide-y divide-zinc-800/60">
             {recentVehicles.map((v) => {
+              const isConsigned = isVehicleConsigned(v);
               const cost = Number(v.purchase_price) + (expByVehicle[v.id] ?? 0);
               const sale =
                 v.status === "sold"
@@ -675,14 +700,30 @@ function Dashboard() {
                             </span>
                           </>
                         )}
+                        {v.plate && (
+                          <>
+                            <span>•</span>
+                            <span className="text-zinc-500 font-mono uppercase">{v.plate}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {/* Status, Preço e Margem */}
-                  <div className="flex items-center justify-between sm:justify-end gap-6 border-t sm:border-t-0 pt-2 sm:pt-0 border-zinc-800/50">
-                    {/* Status Badge */}
-                    <div className="shrink-0">
+                  <div className="flex items-center justify-between sm:justify-end gap-5 border-t sm:border-t-0 pt-2 sm:pt-0 border-zinc-800/50">
+                    {/* Modalidade & Status Badges */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className={cn(
+                          "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border",
+                          isConsigned
+                            ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                            : "bg-zinc-800 text-zinc-300 border-zinc-700/60",
+                        )}
+                      >
+                        {isConsigned ? "Consignado" : "Próprio"}
+                      </span>
                       <span
                         className={cn(
                           "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
@@ -702,7 +743,7 @@ function Dashboard() {
                       </span>
                     </div>
 
-                    {/* Preço de Venda Real */}
+                    {/* Preço de Venda Real & Entrada */}
                     <div className="text-right shrink-0">
                       <span className="block text-[10px] text-zinc-500 uppercase font-semibold">
                         {v.status === "sold" ? "Vendido por" : "Preço de venda"}
@@ -710,12 +751,19 @@ function Dashboard() {
                       <span className="font-display font-bold text-sm text-white">
                         {brl(sale)}
                       </span>
+                      <span className="block text-[9px] text-zinc-500">
+                        {isConsigned
+                          ? `Entrada: ${brl(v.purchase_price)}`
+                          : `Compra: ${brl(v.purchase_price)}`}
+                      </span>
                     </div>
 
                     {/* Lucro Real / Estimado */}
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 min-w-20">
                       <span className="block text-[10px] text-zinc-500 uppercase font-semibold">
-                        {v.status === "sold" ? "Lucro real" : "Lucro est."}
+                        {v.status === "sold"
+                          ? isConsigned ? "Lucro loja" : "Lucro real"
+                          : isConsigned ? "Lucro est. loja" : "Lucro est."}
                       </span>
                       <span
                         className={cn(

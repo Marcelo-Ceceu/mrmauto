@@ -10,8 +10,18 @@ import {
   ChevronRight,
   Video,
   Play,
+  Building2,
+  Handshake,
+  Car,
+  Info,
 } from "lucide-react";
 import { parseVideoUrl, extractVideoUrl, injectVideoToAdText, cleanAdText } from "@/lib/video";
+import {
+  isVehicleConsigned,
+  cleanConsignmentNotes,
+  injectConsignmentToNotes,
+  type OwnershipType,
+} from "@/lib/consignment";
 import {
   DndContext,
   closestCenter,
@@ -65,6 +75,7 @@ export type VehicleFormState = {
   chassis: string | null;
   photos: string[];
   notes: string | null;
+  ownership_type: OwnershipType;
   purchase_date: string | null;
   purchase_price: number;
   owner_name: string | null;
@@ -126,6 +137,7 @@ const empty: VehicleFormState = {
   chassis: null,
   photos: [],
   notes: null,
+  ownership_type: "store",
   purchase_date: new Date().toISOString().slice(0, 10),
   purchase_price: 0,
   owner_name: null,
@@ -185,9 +197,12 @@ export function VehicleForm({
     if (!init) return empty;
     const extractedVideo = init.video_url || extractVideoUrl(init);
     const cleanedAd = cleanAdText(init.ad_text);
+    const isConsigned = isVehicleConsigned(init);
     return {
       ...empty,
       ...init,
+      ownership_type: (init.ownership_type as OwnershipType) || (isConsigned ? "consignment" : "store"),
+      notes: cleanConsignmentNotes(init.notes),
       video_url: extractedVideo || null,
       ad_text: cleanedAd || null,
     };
@@ -543,33 +558,115 @@ export function VehicleForm({
           </Grid>
         </Section>
 
-        <Section title="Compra">
+        {/* Modalidade do Veículo: Próprio da Loja vs Consignado */}
+        <div className="p-4 rounded-xl border border-primary/20 bg-gradient-to-r from-card to-muted/30 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <Car className="h-4 w-4 text-primary" />
+                Modalidade do Veículo
+              </Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {f.ownership_type === "consignment"
+                  ? "Veículo em consignação: o lucro da loja calcula o valor de venda menos o repasse ao dono e despesas."
+                  : "Veículo próprio: o capital investido calcula a compra da loja e despesas de preparação."}
+              </p>
+            </div>
+            <div className="inline-flex rounded-lg border bg-background p-1 shadow-sm shrink-0">
+              <Button
+                type="button"
+                size="sm"
+                variant={f.ownership_type === "store" ? "default" : "ghost"}
+                onClick={() => update("ownership_type", "store")}
+                className={cn(
+                  "h-8 px-3 text-xs font-semibold gap-1.5 transition-all",
+                  f.ownership_type === "store"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                Próprio da Loja
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={f.ownership_type === "consignment" ? "default" : "ghost"}
+                onClick={() => update("ownership_type", "consignment")}
+                className={cn(
+                  "h-8 px-3 text-xs font-semibold gap-1.5 transition-all",
+                  f.ownership_type === "consignment"
+                    ? "bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Handshake className="h-3.5 w-3.5" />
+                Consignado
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <Section
+          title={
+            f.ownership_type === "consignment"
+              ? "Entrada em Consignação"
+              : "Compra do Veículo"
+          }
+        >
           <Grid>
-            <Field label="Data da compra">
+            <Field
+              label={
+                f.ownership_type === "consignment"
+                  ? "Data de entrada do veículo"
+                  : "Data da compra"
+              }
+            >
               <Input
                 type="date"
                 value={f.purchase_date ?? ""}
                 onChange={(e) => update("purchase_date", e.target.value || null)}
               />
             </Field>
-            <Field label="Valor da compra (R$)">
-              <Input
-                type="number"
-                step="0.01"
-                required
-                value={f.purchase_price || ""}
-                onChange={(e) => update("purchase_price", +e.target.value || 0)}
-              />
+            <Field
+              label={
+                f.ownership_type === "consignment"
+                  ? "Valor de entrada / Repasse ao dono (R$)"
+                  : "Valor da compra (R$)"
+              }
+            >
+              <div className="space-y-1">
+                <Input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={f.purchase_price || ""}
+                  onChange={(e) => update("purchase_price", +e.target.value || 0)}
+                  placeholder="0,00"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {f.ownership_type === "consignment"
+                    ? "Valor acordado com o proprietário para repassar a ele na venda do veículo."
+                    : "Valor pago na aquisição do veículo pela loja."}
+                </p>
+              </div>
             </Field>
           </Grid>
         </Section>
 
-        <Section title="Dados do vendedor">
+        <Section
+          title={
+            f.ownership_type === "consignment"
+              ? "Dados do Proprietário (Consignante)"
+              : "Dados do Vendedor"
+          }
+        >
           <Grid>
             <Field label="Nome">
               <Input
                 value={f.owner_name ?? ""}
                 onChange={(e) => update("owner_name", e.target.value || null)}
+                placeholder={f.ownership_type === "consignment" ? "Nome do proprietário" : "Nome do vendedor"}
               />
             </Field>
             <Field label="CPF">
@@ -600,21 +697,38 @@ export function VehicleForm({
           </Grid>
         </Section>
 
-        <Section title="Precificação">
+        <Section title="Precificação e Lucro">
           <div className="grid gap-6 lg:grid-cols-2">
             <FadeInStagger className="space-y-4">
-              <Field label="Margem de lucro desejada (%)">
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={f.profit_margin_pct}
-                  onChange={(e) => update("profit_margin_pct", +e.target.value || 0)}
-                />
+              <Field
+                label={
+                  f.ownership_type === "consignment"
+                    ? "Margem de Lucro Desejada da Loja (%)"
+                    : "Margem de Lucro Desejada (%)"
+                }
+              >
+                <div className="space-y-1">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={f.profit_margin_pct}
+                    onChange={(e) => update("profit_margin_pct", +e.target.value || 0)}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    {f.ownership_type === "consignment"
+                      ? "A sugestão de venda aplica essa margem sobre o repasse ao dono + despesas da loja."
+                      : "A sugestão de venda aplica essa margem sobre a compra + despesas de preparação."}
+                  </p>
+                </div>
               </Field>
               <Field
                 label={
                   <div className="flex items-center justify-between w-full">
-                    <span>Valor real de venda (R$)</span>
+                    <span>
+                      {f.ownership_type === "consignment"
+                        ? "Valor Real de Venda / Anúncio (R$)"
+                        : "Valor Real de Venda (R$)"}
+                    </span>
                     <FipeModal
                       onApplyPrice={(data) => {
                         update("asking_price", data.price);
@@ -686,61 +800,91 @@ export function VehicleForm({
                   </div>
                   <div className="flex-1 bg-muted/50 rounded-md p-2 border border-dashed text-center">
                     <div className="text-[10px] text-muted-foreground uppercase">
-                      Valor estimado
+                      Comissão estimada
                     </div>
                     <div className="text-sm font-semibold">{brl(commission)}</div>
                   </div>
                 </div>
               </div>
             </FadeInStagger>
+
             <FadeIn>
-              <div className="bg-gradient-to-br from-primary/5 to-gold/10 rounded-xl p-6 border border-primary/20 h-full flex flex-col justify-center transition-all hover:shadow-lg hover:scale-[1.01]">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                  <Calculator className="h-4 w-4" />
-                  Resumo Financeiro Estimado
+              <div className="bg-gradient-to-br from-primary/5 to-gold/10 rounded-xl p-6 border border-primary/20 h-full flex flex-col justify-center transition-all hover:shadow-lg hover:scale-[1.01] space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Calculator className="h-4 w-4 text-primary" />
+                    Resumo Financeiro Estimado
+                  </div>
+                  <span
+                    className={cn(
+                      "text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border",
+                      f.ownership_type === "consignment"
+                        ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
+                        : "bg-primary/10 text-primary border-primary/20",
+                    )}
+                  >
+                    {f.ownership_type === "consignment" ? "Consignado" : "Próprio da Loja"}
+                  </span>
                 </div>
 
-                <div className="space-y-4">
+                <div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                    Preço Sugerido de Venda
+                  </div>
+                  <div className="font-display text-3xl font-bold text-primary">
+                    {brl(suggested)}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {f.ownership_type === "consignment"
+                      ? `Custo base (${brl(totalCost)}) + ${f.profit_margin_pct}% margem sugerida`
+                      : `Custo total (${brl(totalCost)}) + ${f.profit_margin_pct}% margem sugerida`}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-primary/10">
                   <div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                      Preço Sugerido
-                    </div>
-                    <div className="font-display text-3xl font-bold text-primary">
-                      {brl(suggested)}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-2 border-t border-primary/10">
-                    <div>
-                      <div className="text-[10px] text-muted-foreground uppercase">Custo Total</div>
-                      <div className="font-medium text-sm">{brl(totalCost)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-muted-foreground uppercase">
-                        Lucro Líquido
-                      </div>
-                      <div
-                        className={cn(
-                          "font-bold text-sm",
-                          finalProfit >= 0 ? "text-success" : "text-destructive",
-                        )}
-                      >
-                        {brl(finalProfit)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-primary/10">
                     <div className="text-[10px] text-muted-foreground uppercase">
-                      Imposto Estimado (6%)
+                      {f.ownership_type === "consignment" ? "Repasse ao Dono" : "Valor de Compra"}
                     </div>
-                    <div className="font-medium text-sm text-amber-600">{brl(calculatedTax)}</div>
+                    <div className="font-semibold text-sm">{brl(f.purchase_price || 0)}</div>
                   </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Despesas Loja</div>
+                    <div className="font-semibold text-sm">{brl(totalExpenses)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Custo Base Total</div>
+                    <div className="font-medium text-sm text-muted-foreground">{brl(totalCost)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase">
+                      {f.ownership_type === "consignment" ? "Lucro Estimado Loja" : "Lucro Líquido"}
+                    </div>
+                    <div
+                      className={cn(
+                        "font-bold text-sm",
+                        finalProfit >= 0 ? "text-success" : "text-destructive",
+                      )}
+                    >
+                      {brl(finalProfit)}
+                      {f.purchase_price > 0 && (
+                        <span className="text-[10px] font-normal text-muted-foreground ml-1">
+                          ({((finalProfit / (f.purchase_price || 1)) * 100).toFixed(1)}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-                  <div className="text-[10px] text-muted-foreground leading-tight italic">
-                    * Lucro líquido calculado sobre o valor real de venda menos custo, imposto e
-                    comissão.
-                  </div>
+                <div className="pt-2 border-t border-primary/10 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Imposto Estimado (6%):</span>
+                  <span className="font-medium text-amber-600">{brl(calculatedTax)}</span>
+                </div>
+
+                <div className="text-[11px] text-muted-foreground leading-tight italic bg-background/50 p-2.5 rounded-lg border border-primary/10">
+                  {f.ownership_type === "consignment"
+                    ? "* Consignado: O valor de entrada é o repasse ao proprietário após a venda. O lucro da loja é o preço de venda subtraído desse repasse e das despesas."
+                    : "* Veículo próprio: O lucro líquido é calculado sobre o preço de venda menos custo da compra, despesas de preparação, imposto e comissão."}
                 </div>
               </div>
             </FadeIn>
@@ -992,26 +1136,45 @@ export function VehicleForm({
                         )}
                       </div>
 
-                      <div className="mt-4 bg-success/10 border border-success/20 rounded-lg p-4 flex items-center justify-between">
-                        <div>
-                          <div className="text-xs text-muted-foreground uppercase font-semibold">
-                            Lucro Real Estimado
+                      <div className="mt-4 bg-success/10 border border-success/20 rounded-lg p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-xs text-muted-foreground uppercase font-semibold">
+                              {f.ownership_type === "consignment"
+                                ? "Lucro Real da Loja (Consignado)"
+                                : "Lucro Real Líquido"}
+                            </div>
+                            <div
+                              className={cn(
+                                "font-display text-2xl font-bold",
+                                displayProfit >= 0 ? "text-success" : "text-destructive",
+                              )}
+                            >
+                              {brl(displayProfit)}
+                            </div>
                           </div>
-                          <div
-                            className={cn(
-                              "font-display text-2xl font-bold",
-                              displayProfit >= 0 ? "text-success" : "text-destructive",
-                            )}
-                          >
-                            {brl(displayProfit)}
+                          <div className="text-right">
+                            <div className="text-xs text-muted-foreground">
+                              {f.ownership_type === "consignment" ? "Margem Loja" : "ROI"}
+                            </div>
+                            <div className="font-semibold text-lg">
+                              {((displayProfit / (totalCost || 1)) * 100).toFixed(1)}%
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted-foreground">ROI</div>
-                          <div className="font-semibold text-lg">
-                            {((displayProfit / totalCost) * 100).toFixed(1)}%
+
+                        {f.ownership_type === "consignment" && (
+                          <div className="pt-2 border-t border-success/20 grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="text-muted-foreground">Repasse ao Proprietário: </span>
+                              <span className="font-semibold text-foreground">{brl(f.purchase_price || 0)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Despesas da Loja: </span>
+                              <span className="font-semibold text-foreground">{brl(totalExpenses)}</span>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </FadeIn>
                   )}
@@ -1246,6 +1409,7 @@ export function VehicleForm({
                 profit_margin_pct: f.profit_margin_pct || 0,
                 video_url: f.video_url?.trim() || null,
                 ad_text: injectVideoToAdText(f.ad_text, f.video_url),
+                notes: injectConsignmentToNotes(f.notes, f.ownership_type === "consignment"),
               };
               await onSubmit(submissionData);
             }}

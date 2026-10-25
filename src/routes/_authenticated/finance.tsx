@@ -20,6 +20,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { brl, fmtDate } from "@/lib/format";
+import { isVehicleConsigned } from "@/lib/consignment";
 import { useMemo } from "react";
 import {
   ResponsiveContainer,
@@ -62,7 +63,7 @@ async function fetchFinance() {
     supabase
       .from("vehicles")
       .select(
-        "id, brand, model, purchase_price, purchase_date, sale_price, sale_date, status, intermediary_commission, tax_amount, user_id, is_trade_in",
+        "id, brand, model, purchase_price, purchase_date, sale_price, sale_date, status, intermediary_commission, tax_amount, user_id, is_trade_in, notes",
       ),
     supabase
       .from("vehicle_expenses")
@@ -76,14 +77,28 @@ async function fetchFinance() {
   const negs = (n.data ?? []) as NegotiationWithInstallments[];
 
   for (const car of v.data ?? []) {
-    // Compras normais (não vindas de troca)
-    if (car.purchase_date && Number(car.purchase_price) > 0 && !car.is_trade_in) {
+    const isConsigned = isVehicleConsigned(car);
+
+    // Compras normais de veículos próprios da loja (saída na data de aquisição)
+    if (!isConsigned && car.purchase_date && Number(car.purchase_price) > 0 && !car.is_trade_in) {
       rows.push({
         date: car.purchase_date,
         type: "out",
         amount: Number(car.purchase_price),
         label: `Compra: ${car.brand} ${car.model}`,
         sub: "Aquisição",
+        user_id: car.user_id,
+      });
+    }
+
+    // Se o veículo consignado foi vendido, o repasse ao proprietário ocorre na data da venda
+    if (isConsigned && car.status === "sold" && Number(car.purchase_price) > 0) {
+      rows.push({
+        date: car.sale_date || new Date().toISOString().slice(0, 10),
+        type: "out",
+        amount: Number(car.purchase_price),
+        label: `Repasse Consignado: ${car.brand} ${car.model}`,
+        sub: "Repasse ao Proprietário",
         user_id: car.user_id,
       });
     }

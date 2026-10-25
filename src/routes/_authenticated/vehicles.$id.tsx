@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { VehicleForm, type VehicleFormState } from "@/components/VehicleForm";
 import { brl, fmtDate } from "@/lib/format";
+import { isVehicleConsigned } from "@/lib/consignment";
 import { type Database } from "@/integrations/supabase/types";
 import { generateSaleContract } from "@/lib/pdf-generator";
 
@@ -578,74 +579,117 @@ function VehicleDetail() {
           </AlertDialog>
         </div>
 
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="font-display text-4xl font-bold tracking-tight">
-              {data.vehicle.brand} {data.vehicle.model}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-muted-foreground">
-                {data.vehicle.year ?? "—"} · {data.vehicle.plate ?? "sem placa"}
-              </p>
-              {data.vehicle.user_id && (
-                <UserBadge userId={data.vehicle.user_id} label="Cadastrado por" />
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col items-end">
-            <Badge
-              className="text-sm px-3 py-1"
-              variant={
-                data.vehicle.status === "sold"
-                  ? "default"
-                  : data.vehicle.status === "maintenance"
-                    ? "destructive"
-                    : "secondary"
-              }
-            >
-              {data.vehicle.status === "sold"
-                ? "Vendido"
-                : data.vehicle.status === "reserved"
-                  ? "Reservado"
-                  : data.vehicle.status === "maintenance"
-                    ? "Em Manutenção"
-                    : "Disponível"}
-            </Badge>
-          </div>
-        </div>
+        {/* Consignment & Financial metrics */}
+        {(() => {
+          const isConsigned = isVehicleConsigned(data.vehicle);
+          const costBase = Number(data.vehicle.purchase_price || 0) + totalExpenses;
+          const effectivePrice =
+            data.vehicle.status === "sold"
+              ? Number(data.vehicle.sale_price || 0)
+              : Number(data.vehicle.asking_price || 0);
+          const profitDiff = effectivePrice - costBase;
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Marca" value={data.vehicle.brand} />
-          <StatCard label="Modelo" value={data.vehicle.model} />
-          <StatCard label="Ano" value={data.vehicle.year?.toString() || "—"} />
-          <StatCard
-            label="Quilometragem"
-            value={data.vehicle.mileage ? `${data.vehicle.mileage.toLocaleString()} km` : "—"}
-          />
-          <StatCard
-            label="Valor de Venda"
-            value={data.vehicle.asking_price ? brl(data.vehicle.asking_price) : "—"}
-          />
-          {data.negotiation && (
+          return (
             <>
-              <StatCard
-                label="Sinal Recebido"
-                value={brl(data.negotiation.down_payment_amount || 0)}
-              />
-              <StatCard
-                label="Saldo a Receber"
-                value={brl(data.negotiation.remaining_balance || 0)}
-                className={
-                  data.negotiation.financial_status === "quitada" ? "text-success" : "text-primary"
-                }
-              />
-              <StatCard
-                label="Situação Financeira"
-                value={data.negotiation.financial_status === "quitada" ? "Quitada" : "Em Aberto"}
-              />
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h1 className="font-display text-4xl font-bold tracking-tight">
+                    {data.vehicle.brand} {data.vehicle.model}
+                  </h1>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-muted-foreground">
+                      {data.vehicle.year ?? "—"} · {data.vehicle.plate ?? "sem placa"}
+                    </p>
+                    {data.vehicle.user_id && (
+                      <UserBadge userId={data.vehicle.user_id} label="Cadastrado por" />
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider border",
+                        isConsigned
+                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30"
+                          : "bg-primary/10 text-primary border-primary/25",
+                      )}
+                    >
+                      {isConsigned ? "🤝 Consignado" : "🚗 Próprio da Loja"}
+                    </span>
+                    <Badge
+                      className="text-sm px-3 py-1"
+                      variant={
+                        data.vehicle.status === "sold"
+                          ? "default"
+                          : data.vehicle.status === "maintenance"
+                            ? "destructive"
+                            : "secondary"
+                      }
+                    >
+                      {data.vehicle.status === "sold"
+                        ? "Vendido"
+                        : data.vehicle.status === "reserved"
+                          ? "Reservado"
+                          : data.vehicle.status === "maintenance"
+                            ? "Em Manutenção"
+                            : "Disponível"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard label="Marca / Modelo" value={`${data.vehicle.brand} ${data.vehicle.model}`} />
+                <StatCard label="Ano" value={data.vehicle.year?.toString() || "—"} />
+                <StatCard
+                  label="Quilometragem"
+                  value={data.vehicle.mileage ? `${data.vehicle.mileage.toLocaleString()} km` : "—"}
+                />
+                <StatCard
+                  label={isConsigned ? "Entrada (Repasse ao Dono)" : "Valor de Compra"}
+                  value={brl(data.vehicle.purchase_price || 0)}
+                />
+                <StatCard
+                  label={isConsigned ? "Despesas da Loja" : "Despesas"}
+                  value={brl(totalExpenses)}
+                />
+                <StatCard
+                  label={data.vehicle.status === "sold" ? "Vendido por" : "Preço de Venda / Anúncio"}
+                  value={effectivePrice > 0 ? brl(effectivePrice) : "—"}
+                />
+                <StatCard
+                  label={
+                    data.vehicle.status === "sold"
+                      ? isConsigned ? "Lucro da Loja (Real)" : "Lucro Real"
+                      : isConsigned ? "Lucro Est. da Loja" : "Lucro Estimado"
+                  }
+                  value={effectivePrice > 0 ? brl(profitDiff) : "—"}
+                  className={profitDiff >= 0 ? "text-success font-bold" : "text-destructive font-bold"}
+                />
+                {data.negotiation && (
+                  <>
+                    <StatCard
+                      label="Sinal Recebido"
+                      value={brl(data.negotiation.down_payment_amount || 0)}
+                    />
+                    <StatCard
+                      label="Saldo a Receber"
+                      value={brl(data.negotiation.remaining_balance || 0)}
+                      className={
+                        data.negotiation.financial_status === "quitada" ? "text-success" : "text-primary"
+                      }
+                    />
+                    <StatCard
+                      label="Situação Financeira"
+                      value={data.negotiation.financial_status === "quitada" ? "Quitada" : "Em Aberto"}
+                    />
+                  </>
+                )}
+              </div>
             </>
-          )}
-        </div>
+          );
+        })()}
 
         {data.negotiation && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -932,6 +976,7 @@ function VehicleDetail() {
               {
                 ...data.vehicle,
                 ...data.negotiation,
+                ownership_type: isVehicleConsigned(data.vehicle) ? "consignment" : "store",
                 payment_installments:
                   data.negotiation?.installment_count || data.vehicle.payment_installments,
                 first_installment_date: data.negotiation?.first_installment_date,

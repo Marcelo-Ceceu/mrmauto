@@ -1,8 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Car, TrendingUp, TrendingDown, DollarSign, Plus, MessageSquare } from "lucide-react";
+import {
+  Car,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Plus,
+  MessageSquare,
+  AlertTriangle,
+  ArrowRight,
+  Wallet,
+  Handshake,
+  Calendar,
+  Gauge,
+  Clock,
+  Layers,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { brl, fmtDate } from "@/lib/format";
@@ -19,7 +33,6 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { FadeIn, FadeInStagger } from "@/components/ui/fade-in";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -41,8 +54,27 @@ type Vehicle = {
   asking_price: number | null;
   profit_margin_pct: number;
   is_trade_in: boolean;
+  mileage: number | null;
+  photos: string[] | null;
 };
+
 type Expense = { vehicle_id: string; amount: number; expense_date: string };
+
+type Negotiation = {
+  id: string;
+  vehicle_id: string;
+  buyer_name: string | null;
+  buyer_phone: string | null;
+  sale_date: string;
+};
+
+type Installment = {
+  id: string;
+  negotiation_id: string;
+  amount: number;
+  due_date: string;
+  status: string;
+};
 
 async function fetchData() {
   const [v, e, n, inst] = await Promise.all([
@@ -60,8 +92,8 @@ async function fetchData() {
   return {
     vehicles: (v.data ?? []) as Vehicle[],
     expenses: (e.data ?? []) as Expense[],
-    negotiations: n.data ?? [],
-    pendingInstallments: inst.data ?? [],
+    negotiations: (n.data ?? []) as Negotiation[],
+    pendingInstallments: (inst.data ?? []) as Installment[],
   };
 }
 
@@ -70,8 +102,13 @@ function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="p-8">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="p-8 flex items-center justify-center min-h-[60vh] bg-[#0b0d11]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+          <span className="text-xs text-zinc-400 font-semibold tracking-wider uppercase">
+            Carregando indicadores...
+          </span>
+        </div>
       </div>
     );
   }
@@ -116,6 +153,7 @@ function Dashboard() {
     .filter((v) => v.is_trade_in && v.status !== "sold")
     .reduce((a, v) => a + Number(v.purchase_price), 0);
 
+  // Gráfico de fluxo de caixa dos últimos 6 meses
   const months: { label: string; key: string }[] = [];
   const now = new Date();
   for (let i = 5; i >= 0; i--) {
@@ -125,6 +163,7 @@ function Dashboard() {
       key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
     });
   }
+
   const chartData = months.map((m) => {
     const saidas =
       vehicles
@@ -143,390 +182,559 @@ function Dashboard() {
     {
       name: "Disponíveis",
       value: vehicles.filter((v) => v.status === "available").length,
-      color: "var(--color-gold)",
-    },
-    {
-      name: "Manutenção",
-      value: vehicles.filter((v) => v.status === "maintenance").length,
-      color: "var(--color-destructive)",
-    },
-    {
-      name: "Reservados",
-      value: vehicles.filter((v) => v.status === "reserved").length,
-      color: "var(--color-chart-2)",
+      color: "#ef4444", // Vermelho esportivo MRM
     },
     {
       name: "Vendidos",
       value: vehicles.filter((v) => v.status === "sold").length,
-      color: "var(--color-success)",
+      color: "#10b981", // Verde
+    },
+    {
+      name: "Manutenção",
+      value: vehicles.filter((v) => v.status === "maintenance").length,
+      color: "#f59e0b", // Âmbar
+    },
+    {
+      name: "Reservados",
+      value: vehicles.filter((v) => v.status === "reserved").length,
+      color: "#3b82f6", // Azul
     },
   ].filter((d) => d.value > 0);
 
-  const recent = vehicles.slice(0, 5);
+  const recentVehicles = vehicles.slice(0, 6);
+
+  // Cálculos de alertas
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const overdueList = pendingInstallments.filter((i) => new Date(i.due_date) < today);
+  const dueTodayList = pendingInstallments.filter((i) => {
+    const d = new Date(i.due_date);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() === today.getTime();
+  });
+  const dueNext7DaysList = pendingInstallments.filter((i) => {
+    const d = new Date(i.due_date);
+    d.setHours(0, 0, 0, 0);
+    const diff = (d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+    return diff > 0 && diff <= 7;
+  });
 
   return (
-    <div className="p-6 lg:p-10 space-y-10 max-w-7xl mx-auto">
-      <FadeIn direction="down" distance={10}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-card p-8 rounded-3xl border border-border/50 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-primary/10 transition-colors" />
-          <div className="relative">
-            <h1 className="font-display text-2xl md:text-3xl lg:text-4xl font-black tracking-tight bg-gradient-primary bg-clip-text text-transparent">
-              Bem-vindo ao MRM AUTOMÓVEIS
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto bg-[#0b0d11] text-zinc-100 min-h-screen">
+      {/* ── CABEÇALHO COMPACTO ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-display text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Dashboard
             </h1>
-            <p className="text-muted-foreground mt-2 text-lg">
-              Aqui está o que está acontecendo com sua loja hoje.
-            </p>
+            <span className="px-2 py-0.5 rounded-full bg-red-600/15 border border-red-600/30 text-red-500 text-[10px] font-bold uppercase tracking-wider">
+              Ao vivo
+            </span>
           </div>
-          <div className="relative flex items-center gap-3">
-            <Link to="/vehicles/new">
-              <Button className="bg-gradient-primary shadow-elegant h-12 px-6 rounded-xl text-white font-bold hover:scale-105 transition-transform">
-                <Plus className="h-5 w-5 mr-2" />
-                Cadastrar veículo
-              </Button>
-            </Link>
-          </div>
+          <p className="text-zinc-400 text-xs sm:text-sm mt-0.5">
+            Gestão operacional, indicadores financeiros e movimentações de estoque
+          </p>
         </div>
-      </FadeIn>
 
-      <FadeInStagger className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        <div className="flex items-center gap-3">
+          <Link to="/vehicles/new">
+            <Button className="bg-red-600 hover:bg-red-700 text-white font-bold h-10 px-4 rounded-xl shadow-md shadow-red-600/25 transition-all hover:scale-105 gap-2 text-sm">
+              <Plus className="h-4 w-4" />
+              <span>+ Novo veículo</span>
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* ── INDICADORES FINANCEIROS (CARDS ESCUROS UNIFORMES) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {/* Card 1: Estoque Ativo */}
         <StatCard
           icon={Car}
-          label="Em estoque"
-          value={String(totalStock)}
-          sub={`${totalSold} vendidos`}
+          label="Estoque Ativo"
+          value={`${totalStock} veículos`}
+          sub={`${totalSold} vendidos no total`}
+          tone="red"
         />
+
+        {/* Card 2: Total Investido */}
         <StatCard
           icon={TrendingDown}
-          label="Total investido"
+          label="Total Investido"
           value={brl(totalInvested)}
-          sub="Compras e despesas"
-          tone="destructive"
+          sub="Compras e despesas do estoque"
+          tone="zinc"
         />
+
+        {/* Card 3: Lucro Realizado */}
         <StatCard
           icon={DollarSign}
-          label="Lucro realizado"
+          label="Lucro Realizado"
           value={brl(totalProfit)}
           sub={
             totalRevenue > 0
-              ? `${((totalProfit / totalRevenue) * 100).toFixed(1)}% de margem`
+              ? `${((totalProfit / totalRevenue) * 100).toFixed(1)}% margem realizada`
               : "Vendas concluídas"
           }
-          tone="gold"
+          tone="emerald"
         />
+
+        {/* Card 4: Previsão de Lucro */}
         <StatCard
           icon={TrendingUp}
-          label="Previsão de lucro"
+          label="Previsão de Lucro"
           value={brl(projectedProfit)}
-          sub="Potencial do estoque"
-          tone="success"
+          sub="Potencial do estoque atual"
+          tone="red"
         />
+
+        {/* Card 5: A Receber */}
         <StatCard
-          icon={DollarSign}
+          icon={Wallet}
           label="A Receber"
           value={brl(totalToReceive)}
           sub={`${pendingInstallments.length} parcelas pendentes`}
-          tone="gold"
+          tone="amber"
         />
+
+        {/* Card 6: Estoque Trocas */}
         <StatCard
-          icon={Car}
+          icon={Handshake}
           label="Estoque Trocas"
           value={brl(tradeInStockValue)}
           sub="Patrimônio em trocas"
-          tone="default"
+          tone="blue"
         />
-      </FadeInStagger>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {pendingInstallments.length > 0 && (
-          <FadeIn className="lg:col-span-2">
-            <Card className="p-6 border-amber-200 bg-amber-50/30">
-              <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-                ⚠️ Alertas Financeiros
-                <Badge variant="outline" className="bg-amber-100">
-                  {pendingInstallments.length}
-                </Badge>
-              </h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {(() => {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-
-                  const overdue = pendingInstallments.filter((i) => new Date(i.due_date) < today);
-                  const dueToday = pendingInstallments.filter((i) => {
-                    const d = new Date(i.due_date);
-                    d.setHours(0, 0, 0, 0);
-                    return d.getTime() === today.getTime();
-                  });
-                  const due3Days = pendingInstallments.filter((i) => {
-                    const d = new Date(i.due_date);
-                    d.setHours(0, 0, 0, 0);
-                    const diff = (d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-                    return diff > 0 && diff <= 3;
-                  });
-                  const due7Days = pendingInstallments.filter((i) => {
-                    const d = new Date(i.due_date);
-                    d.setHours(0, 0, 0, 0);
-                    const diff = (d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-                    return diff > 3 && diff <= 7;
-                  });
-
-                  return (
-                    <>
-                      {overdue.length > 0 && (
-                        <div className="p-4 rounded-xl border bg-destructive/10 border-destructive/20">
-                          <div className="text-xs font-bold text-destructive uppercase tracking-wider">
-                            Em Atraso
-                          </div>
-                          <div className="text-2xl font-bold text-destructive mt-1">
-                            {overdue.length}
-                          </div>
-                          <div className="text-xs text-destructive/80 mt-1">
-                            Total: {brl(overdue.reduce((a, b) => a + Number(b.amount), 0))}
-                          </div>
-                        </div>
-                      )}
-                      {dueToday.length > 0 && (
-                        <div className="p-4 rounded-xl border bg-orange-100 border-orange-200 text-orange-800">
-                          <div className="text-xs font-bold uppercase tracking-wider">
-                            Vencendo Hoje
-                          </div>
-                          <div className="text-2xl font-bold mt-1">{dueToday.length}</div>
-                          <div className="text-xs opacity-80 mt-1">
-                            Total: {brl(dueToday.reduce((a, b) => a + Number(b.amount), 0))}
-                          </div>
-                        </div>
-                      )}
-                      {due3Days.length > 0 && (
-                        <div className="p-4 rounded-xl border bg-amber-100 border-amber-200 text-amber-800">
-                          <div className="text-xs font-bold uppercase tracking-wider">
-                            Próximos 3 dias
-                          </div>
-                          <div className="text-2xl font-bold mt-1">{due3Days.length}</div>
-                          <div className="text-xs opacity-80 mt-1">
-                            Total: {brl(due3Days.reduce((a, b) => a + Number(b.amount), 0))}
-                          </div>
-                        </div>
-                      )}
-                      {due7Days.length > 0 && (
-                        <div className="p-4 rounded-xl border bg-blue-50 border-blue-100 text-blue-800">
-                          <div className="text-xs font-bold uppercase tracking-wider">
-                            Próximos 7 dias
-                          </div>
-                          <div className="text-2xl font-bold mt-1">{due7Days.length}</div>
-                          <div className="text-xs opacity-80 mt-1">
-                            Total: {brl(due7Days.reduce((a, b) => a + Number(b.amount), 0))}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* Quick WhatsApp Billing List */}
-              <div className="mt-6">
-                <h3 className="text-sm font-semibold mb-3">Próximos Vencimentos / Atrasados</h3>
-                <div className="space-y-2 max-h-60 overflow-auto pr-2">
-                  {pendingInstallments.slice(0, 10).map((inst) => {
-                    const neg = negotiations.find((n) => n.id === inst.negotiation_id);
-                    if (!neg || !neg.buyer_phone) return null;
-
-                    const isOverdue =
-                      new Date(inst.due_date) < new Date(new Date().setHours(0, 0, 0, 0));
-                    const text = `Olá ${neg.buyer_name?.split(" ")[0]}, tudo bem? Somos da MRM Automóveis. Passando para lembrar sobre a parcela do seu veículo no valor de ${brl(inst.amount)} com vencimento em ${fmtDate(inst.due_date)}.\nQualquer dúvida estamos à disposição!`;
-
-                    return (
-                      <div
-                        key={inst.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-white/50 border shadow-sm"
-                      >
-                        <div>
-                          <div className="font-medium text-sm">{neg.buyer_name}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
-                            <span className={isOverdue ? "text-destructive font-semibold" : ""}>
-                              {fmtDate(inst.due_date)} {isOverdue && "(Atrasado)"}
-                            </span>
-                            •<span className="font-medium">{brl(inst.amount)}</span>
-                          </div>
-                        </div>
-                        <a
-                          href={`https://wa.me/${neg.buyer_phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8 gap-1.5 px-2.5"
-                          >
-                            <MessageSquare className="h-3.5 w-3.5" />
-                            Cobrar
-                          </Button>
-                        </a>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </Card>
-          </FadeIn>
-        )}
-        <FadeIn className="lg:col-span-2" delay={0.2}>
-          <Card className="p-6 h-full transition-shadow hover:shadow-md">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-display text-lg font-semibold">Fluxo de caixa</h2>
-              <span className="text-xs text-muted-foreground">Últimos 6 meses</span>
-            </div>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ left: -10, right: 10, top: 10 }}>
-                  <defs>
-                    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="var(--color-success)" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-destructive)" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="var(--color-destructive)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                  <XAxis dataKey="mes" stroke="var(--color-muted-foreground)" fontSize={12} />
-                  <YAxis
-                    stroke="var(--color-muted-foreground)"
-                    fontSize={12}
-                    tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--color-card)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 8,
-                    }}
-                    formatter={(v: number) => brl(v)}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="entradas"
-                    stroke="var(--color-success)"
-                    fill="url(#g1)"
-                    strokeWidth={2}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="saidas"
-                    stroke="var(--color-destructive)"
-                    fill="url(#g2)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        </FadeIn>
-
-        <FadeIn delay={0.3}>
-          <Card className="p-6 h-full transition-shadow hover:shadow-md">
-            <h2 className="font-display text-lg font-semibold mb-6">Status do estoque</h2>
-            {statusData.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Cadastre seu primeiro veículo.</p>
-            ) : (
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={50}
-                      outerRadius={90}
-                      paddingAngle={4}
-                    >
-                      {statusData.map((d, i) => (
-                        <Cell key={i} fill={d.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </Card>
-        </FadeIn>
       </div>
 
-      <FadeIn delay={0.4}>
-        <Card className="p-6 transition-shadow hover:shadow-md">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-lg font-semibold">Veículos recentes</h2>
-            <Link to="/vehicles" className="text-sm text-primary hover:underline">
-              Ver todos
+      {/* ── CARD COMPACTO: ALERTAS FINANCEIROS ── */}
+      {pendingInstallments.length > 0 && (
+        <div className="bg-[#141820] border border-amber-500/30 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-sm text-white flex items-center gap-2">
+                  Alertas Financeiros
+                  <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/10 text-[10px]">
+                    {pendingInstallments.length} pendentes
+                  </Badge>
+                </h3>
+                <p className="text-[11px] text-zinc-400">Acompanhamento de parcelas e cobrança rápida</p>
+              </div>
+            </div>
+
+            <Link to="/finance">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-zinc-700 bg-zinc-800/60 text-zinc-300 hover:text-white hover:bg-zinc-800 text-xs h-8 px-3 rounded-lg"
+              >
+                Ver todos no Financeiro →
+              </Button>
             </Link>
           </div>
-          {recent.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              Nenhum veículo cadastrado ainda.
-            </p>
-          ) : (
-            <div className="divide-y">
-              {recent.map((v) => {
-                const cost = Number(v.purchase_price) + (expByVehicle[v.id] ?? 0);
-                const sale =
-                  v.status === "sold"
-                    ? Number(v.sale_price || 0)
-                    : (v.asking_price ?? cost * (1 + Number(v.profit_margin_pct || 0) / 100));
-                const profit = sale - cost;
+
+          {/* Resumo em blocos compactos */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-3.5 rounded-xl bg-red-950/20 border border-red-500/30 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-red-400 block">
+                  Em Atraso
+                </span>
+                <span className="text-xl font-black text-white font-display">
+                  {overdueList.length}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-zinc-500 block">Valor total</span>
+                <span className="text-xs font-bold text-red-400">
+                  {brl(overdueList.reduce((a, b) => a + Number(b.amount), 0))}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/30 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">
+                  Vencendo Hoje
+                </span>
+                <span className="text-xl font-black text-white font-display">
+                  {dueTodayList.length}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-zinc-500 block">Valor total</span>
+                <span className="text-xs font-bold text-amber-400">
+                  {brl(dueTodayList.reduce((a, b) => a + Number(b.amount), 0))}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-zinc-900/60 border border-zinc-700/60 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+                  Próximos 7 Dias
+                </span>
+                <span className="text-xl font-black text-white font-display">
+                  {dueNext7DaysList.length}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-zinc-500 block">Valor total</span>
+                <span className="text-xs font-bold text-zinc-300">
+                  {brl(dueNext7DaysList.reduce((a, b) => a + Number(b.amount), 0))}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Lista rápida de cobrança (até 4 parcelas) */}
+          <div className="space-y-2 pt-1">
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+              Próximas cobranças prioritárias
+            </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {pendingInstallments.slice(0, 4).map((inst) => {
+                const neg = negotiations.find((n) => n.id === inst.negotiation_id);
+                const isOverdue = new Date(inst.due_date) < today;
+                const buyerPhone = neg?.buyer_phone?.replace(/\D/g, "") || "";
+                const textMsg = `Olá ${neg?.buyer_name?.split(" ")[0] || "Cliente"}, tudo bem? Somos da MRM Automóveis. Passando para lembrar sobre a parcela do seu veículo no valor de ${brl(inst.amount)} com vencimento em ${fmtDate(inst.due_date)}.\nQualquer dúvida estamos à disposição!`;
+
                 return (
-                  <Link
-                    key={v.id}
-                    to="/vehicles/$id"
-                    params={{ id: v.id }}
-                    className="flex items-center justify-between py-3 hover:bg-muted/40 px-2 -mx-2 rounded transition-all hover:pl-4 group"
+                  <div
+                    key={inst.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-[#0e1117] border border-zinc-800 hover:border-zinc-700 transition-colors"
                   >
-                    <div>
-                      <div className="font-medium group-hover:text-primary transition-colors">
-                        {v.brand} {v.model} {v.year && `· ${v.year}`}
+                    <div className="min-w-0 pr-2">
+                      <div className="text-xs font-bold text-white truncate">
+                        {neg?.buyer_name || "Cliente não informado"}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        Status:{" "}
-                        {v.status === "sold"
-                          ? "Vendido"
-                          : v.status === "reserved"
-                            ? "Reservado"
-                            : v.status === "maintenance"
-                              ? "Manutenção"
-                              : "Disponível"}
+                      <div className="text-[11px] text-zinc-400 flex items-center gap-2 mt-0.5">
+                        <span className={cn(isOverdue && "text-red-400 font-bold")}>
+                          Venc: {fmtDate(inst.due_date)} {isOverdue && "(Atrasado)"}
+                        </span>
+                        <span>•</span>
+                        <span className="text-zinc-200 font-bold">{brl(inst.amount)}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right hidden sm:block">
-                        <div className="text-sm font-medium">{brl(sale)}</div>
-                        <div className="text-[10px] text-muted-foreground">
-                          Preço {v.status === "sold" ? "venda" : "venda est."}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div
-                          className={cn(
-                            "text-sm font-bold",
-                            profit >= 0 ? "text-success" : "text-destructive",
-                          )}
+
+                    {buyerPhone ? (
+                      <a
+                        href={`https://wa.me/${buyerPhone}?text=${encodeURIComponent(textMsg)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3 rounded-lg gap-1.5 shadow-sm shrink-0"
                         >
-                          {brl(profit)}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {v.status === "sold" ? "Lucro real" : "Lucro est."}
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          <span>Cobrar WhatsApp</span>
+                        </Button>
+                      </a>
+                    ) : (
+                      <span className="text-[10px] text-zinc-500 italic">Sem telefone</span>
+                    )}
+                  </div>
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SEÇÃO: GRÁFICO DE FLUXO DE CAIXA + STATUS DO ESTOQUE ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Gráfico de Fluxo de Caixa (2 colunas) */}
+        <div className="lg:col-span-2 bg-[#141820] border border-zinc-800/80 rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+            <div>
+              <h2 className="font-display font-bold text-base sm:text-lg text-white">
+                Fluxo de Caixa
+              </h2>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Histórico de entradas e saídas financeiras nos últimos 6 meses
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs font-semibold">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400">
+                <span className="w-2 h-2 rounded-full bg-red-500" />
+                Saídas (Compras & Despesas)
+              </span>
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                Entradas (Vendas)
+              </span>
+            </div>
+          </div>
+
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ left: -15, right: 10, top: 10, bottom: 0 }}>
+                <defs>
+                  {/* Gradiente Vermelho Esportivo para Saídas */}
+                  <linearGradient id="redGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
+                  </linearGradient>
+                  {/* Gradiente Verde para Entradas */}
+                  <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                <XAxis
+                  dataKey="mes"
+                  stroke="#71717a"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={{ stroke: "#27272a" }}
+                />
+                <YAxis
+                  stroke="#71717a"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: "#27272a" }}
+                  tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#18181b",
+                    borderColor: "#3f3f46",
+                    borderRadius: "12px",
+                    color: "#f4f4f5",
+                    fontSize: "12px",
+                    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
+                  }}
+                  formatter={(v: number) => [brl(v)]}
+                  labelStyle={{ fontWeight: "bold", color: "#ffffff", marginBottom: "4px" }}
+                />
+                <Area
+                  type="monotone"
+                  name="Entradas"
+                  dataKey="entradas"
+                  stroke="#10b981"
+                  strokeWidth={2.5}
+                  fill="url(#greenGradient)"
+                  dot={{ r: 3, fill: "#10b981" }}
+                  activeDot={{ r: 5, stroke: "#10b981", strokeWidth: 2, fill: "#ffffff" }}
+                />
+                <Area
+                  type="monotone"
+                  name="Saídas"
+                  dataKey="saidas"
+                  stroke="#ef4444"
+                  strokeWidth={2.5}
+                  fill="url(#redGradient)"
+                  dot={{ r: 3, fill: "#ef4444" }}
+                  activeDot={{ r: 5, stroke: "#ef4444", strokeWidth: 2, fill: "#ffffff" }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Gráfico Donut de Status do Estoque (1 coluna) */}
+        <div className="bg-[#141820] border border-zinc-800/80 rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col justify-between">
+          <div className="mb-4">
+            <h2 className="font-display font-bold text-base sm:text-lg text-white">
+              Status do Estoque
+            </h2>
+            <p className="text-xs text-zinc-400 mt-0.5">Distribuição atual dos veículos cadastrados</p>
+          </div>
+
+          {statusData.length === 0 ? (
+            <div className="py-16 text-center text-zinc-500 text-xs">
+              Nenhum veículo em estoque no momento.
+            </div>
+          ) : (
+            <div className="h-64 flex flex-col justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={4}
+                  >
+                    {statusData.map((d, i) => (
+                      <Cell key={i} fill={d.color} stroke="#141820" strokeWidth={2} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#18181b",
+                      borderColor: "#3f3f46",
+                      borderRadius: "10px",
+                      color: "#ffffff",
+                      fontSize: "12px",
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    iconType="circle"
+                    formatter={(val) => <span className="text-xs text-zinc-300 font-medium">{val}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           )}
-        </Card>
-      </FadeIn>
+
+          <div className="mt-4 pt-4 border-t border-zinc-800/80 flex items-center justify-between text-xs text-zinc-400">
+            <span>Total de registros:</span>
+            <strong className="text-white font-bold">{vehicles.length} veículos</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* ── SEÇÃO: VEÍCULOS RECENTES (LISTA ORGANIZADA COM FOTOS E DADOS REAIS) ── */}
+      <div className="bg-[#141820] border border-zinc-800/80 rounded-2xl p-5 sm:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5 pb-3 border-b border-zinc-800/80">
+          <div>
+            <h2 className="font-display font-bold text-base sm:text-lg text-white">
+              Veículos Recentes no Estoque
+            </h2>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Últimos veículos cadastrados com custos, preços reais e margem
+            </p>
+          </div>
+
+          <Link to="/vehicles">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-500 hover:text-red-400 hover:bg-red-500/10 text-xs font-semibold gap-1.5 p-0 sm:px-3 h-8"
+            >
+              <span>Ver estoque completo ({vehicles.length})</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
+        </div>
+
+        {recentVehicles.length === 0 ? (
+          <div className="py-12 text-center text-zinc-500 text-xs">
+            Nenhum veículo cadastrado ainda no sistema.
+          </div>
+        ) : (
+          <div className="divide-y divide-zinc-800/60">
+            {recentVehicles.map((v) => {
+              const cost = Number(v.purchase_price) + (expByVehicle[v.id] ?? 0);
+              const sale =
+                v.status === "sold"
+                  ? Number(v.sale_price || 0)
+                  : (v.asking_price ?? cost * (1 + Number(v.profit_margin_pct || 0) / 100));
+              const profit = sale - cost;
+
+              return (
+                <Link
+                  key={v.id}
+                  to="/vehicles/$id"
+                  params={{ id: v.id }}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between py-3.5 px-3 -mx-3 rounded-xl hover:bg-zinc-800/40 transition-all gap-4 group"
+                >
+                  {/* Foto e Identificação */}
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-16 h-12 rounded-lg bg-zinc-900 border border-zinc-700/60 overflow-hidden shrink-0 relative flex items-center justify-center">
+                      {v.photos?.[0] ? (
+                        <img
+                          src={v.photos[0]}
+                          alt={`${v.brand} ${v.model}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <Car className="h-5 w-5 text-zinc-600" />
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="font-display font-bold text-sm text-white group-hover:text-red-400 transition-colors truncate">
+                        {v.brand} {v.model}
+                      </div>
+                      <div className="text-[11px] text-zinc-400 flex items-center gap-2 mt-0.5">
+                        {v.year && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3 text-zinc-500" />
+                            {v.year}
+                          </span>
+                        )}
+                        {v.mileage != null && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Gauge className="h-3 w-3 text-zinc-500" />
+                              {v.mileage.toLocaleString("pt-BR")} km
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status, Preço e Margem */}
+                  <div className="flex items-center justify-between sm:justify-end gap-6 border-t sm:border-t-0 pt-2 sm:pt-0 border-zinc-800/50">
+                    {/* Status Badge */}
+                    <div className="shrink-0">
+                      <span
+                        className={cn(
+                          "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+                          v.status === "sold" && "bg-emerald-500/10 text-emerald-400 border-emerald-500/25",
+                          v.status === "available" && "bg-red-500/10 text-red-400 border-red-500/25",
+                          v.status === "maintenance" && "bg-amber-500/10 text-amber-400 border-amber-500/25",
+                          v.status === "reserved" && "bg-blue-500/10 text-blue-400 border-blue-500/25",
+                        )}
+                      >
+                        {v.status === "sold"
+                          ? "Vendido"
+                          : v.status === "available"
+                            ? "Disponível"
+                            : v.status === "maintenance"
+                              ? "Manutenção"
+                              : "Reservado"}
+                      </span>
+                    </div>
+
+                    {/* Preço de Venda Real */}
+                    <div className="text-right shrink-0">
+                      <span className="block text-[10px] text-zinc-500 uppercase font-semibold">
+                        {v.status === "sold" ? "Vendido por" : "Preço de venda"}
+                      </span>
+                      <span className="font-display font-bold text-sm text-white">
+                        {brl(sale)}
+                      </span>
+                    </div>
+
+                    {/* Lucro Real / Estimado */}
+                    <div className="text-right shrink-0">
+                      <span className="block text-[10px] text-zinc-500 uppercase font-semibold">
+                        {v.status === "sold" ? "Lucro real" : "Lucro est."}
+                      </span>
+                      <span
+                        className={cn(
+                          "font-display font-bold text-xs sm:text-sm",
+                          profit >= 0 ? "text-emerald-400" : "text-red-400",
+                        )}
+                      >
+                        {brl(profit)}
+                      </span>
+                    </div>
+
+                    <ArrowRight className="h-4 w-4 text-zinc-600 group-hover:text-white group-hover:translate-x-1 transition-all hidden sm:block shrink-0" />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -536,60 +744,44 @@ function StatCard({
   label,
   value,
   sub,
-  tone = "default",
+  tone = "zinc",
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   sub?: string;
-  tone?: "default" | "success" | "destructive" | "gold";
+  tone?: "red" | "emerald" | "amber" | "blue" | "zinc";
 }) {
-  const toneClasses = {
-    default: "bg-primary/10 text-primary border-primary/20",
-    success: "bg-success/10 text-success border-success/20",
-    destructive: "bg-destructive/10 text-destructive border-destructive/20",
-    gold: "bg-gold/10 text-gold border-gold/20",
+  const toneBadge = {
+    red: "bg-red-500/15 text-red-500 border-red-500/30",
+    emerald: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    amber: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+    blue: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    zinc: "bg-zinc-800 text-zinc-300 border-zinc-700",
   }[tone];
 
   return (
-    <FadeIn>
-      <div className="glass p-5 sm:p-6 rounded-2xl transition-all duration-500 hover:shadow-card hover:-translate-y-1 group relative overflow-hidden">
+    <div className="bg-[#141820] border border-zinc-800/80 rounded-2xl p-4 sm:p-5 shadow-sm hover:border-zinc-700 transition-all flex flex-col justify-between group relative overflow-hidden">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider truncate">
+          {label}
+        </span>
         <div
           className={cn(
-            "absolute -right-8 -top-8 w-28 h-28 rounded-full opacity-[0.05] group-hover:opacity-[0.12] group-hover:scale-150 blur-xl transition-all duration-700",
-            tone === "destructive"
-              ? "bg-destructive"
-              : tone === "success"
-                ? "bg-success"
-                : tone === "gold"
-                  ? "bg-gold"
-                  : "bg-primary",
+            "w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105",
+            toneBadge,
           )}
-        />
-        <div className="flex items-start justify-between relative z-10 gap-2">
-          <div className="space-y-1 flex-1 min-w-0">
-            <p className="text-[10px] sm:text-xs 2xl:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">
-              {label}
-            </p>
-            <p className="font-display text-sm sm:text-base xl:text-lg 2xl:text-base font-black text-foreground tracking-tighter truncate">
-              {value}
-            </p>
-            {sub && (
-              <p className="text-[10px] sm:text-xs 2xl:text-[10px] text-muted-foreground font-medium flex items-center gap-1 opacity-80 mt-1 truncate">
-                {sub}
-              </p>
-            )}
-          </div>
-          <div
-            className={cn(
-              "h-10 w-10 sm:h-12 sm:w-12 2xl:h-10 2xl:w-10 rounded-xl sm:rounded-2xl 2xl:rounded-xl shrink-0 flex items-center justify-center transition-all duration-500 group-hover:rotate-12 group-hover:scale-110 border",
-              toneClasses,
-            )}
-          >
-            <Icon className="h-5 w-5 sm:h-6 sm:w-6 2xl:h-5 2xl:w-5" />
-          </div>
+        >
+          <Icon className="h-4 w-4" />
         </div>
       </div>
-    </FadeIn>
+
+      <div>
+        <div className="font-display text-xl sm:text-2xl font-black text-white tracking-tight truncate">
+          {value}
+        </div>
+        {sub && <p className="text-[11px] text-zinc-400 mt-1 truncate">{sub}</p>}
+      </div>
+    </div>
   );
 }

@@ -3,7 +3,7 @@
  */
 
 export type VideoInfo = {
-  type: "youtube" | "vimeo" | "direct" | "unsupported";
+  type: "youtube" | "vimeo" | "instagram" | "direct" | "unsupported";
   embedUrl: string | null;
   rawUrl: string;
 };
@@ -79,6 +79,18 @@ export function parseVideoUrl(url?: string | null): VideoInfo | null {
     return {
       type: "vimeo",
       embedUrl: `https://player.vimeo.com/video/${vimeoMatch[3]}`,
+      rawUrl: trimmed,
+    };
+  }
+
+  // Instagram Reel or Post
+  const igMatch = trimmed.match(/instagram\.com\/(reel|reels|p)\/([a-zA-Z0-9_-]+)/i);
+  if (igMatch && igMatch[1] && igMatch[2]) {
+    const kind = igMatch[1].toLowerCase() === "p" ? "p" : "reel";
+    const code = igMatch[2];
+    return {
+      type: "instagram",
+      embedUrl: `https://www.instagram.com/${kind}/${code}/embed/`,
       rawUrl: trimmed,
     };
   }

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { MessageCircle, Save, Loader2, MapPin } from "lucide-react";
+import { MessageCircle, Save, Loader2, MapPin, Instagram } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -17,6 +17,7 @@ function SettingsPage() {
   const queryClient = useQueryClient();
   const [whatsapp, setWhatsapp] = useState("");
   const [address, setAddress] = useState("");
+  const [instagram, setInstagram] = useState("");
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["settings"],
@@ -34,6 +35,9 @@ function SettingsPage() {
 
       const addrSetting = settings.find((s) => s.key === "store_address");
       if (addrSetting) setAddress(addrSetting.value);
+
+      const igSetting = settings.find((s) => s.key === "instagram_url");
+      if (igSetting) setInstagram(igSetting.value);
     }
   }, [settings]);
 
@@ -41,13 +45,16 @@ function SettingsPage() {
     mutationFn: async ({
       newWhatsapp,
       newAddress,
+      newInstagram,
     }: {
       newWhatsapp: string;
       newAddress: string;
+      newInstagram: string;
     }) => {
       const updates = [
         supabase.from("settings").upsert({ key: "whatsapp_number", value: newWhatsapp }),
         supabase.from("settings").upsert({ key: "store_address", value: newAddress }),
+        supabase.from("settings").upsert({ key: "instagram_url", value: newInstagram }),
       ];
       const results = await Promise.all(updates);
       for (const res of results) {
@@ -59,7 +66,7 @@ function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["store-settings"] });
       queryClient.invalidateQueries({ queryKey: ["whatsapp-setting"] });
       toast.success("Configurações salvas", {
-        description: "Os dados de contato e endereço foram atualizados com sucesso.",
+        description: "Os dados de contato, endereço e Instagram foram atualizados com sucesso.",
       });
     },
     onError: (error) => {
@@ -70,7 +77,7 @@ function SettingsPage() {
   });
 
   const handleSave = () => {
-    mutation.mutate({ newWhatsapp: whatsapp, newAddress: address });
+    mutation.mutate({ newWhatsapp: whatsapp, newAddress: address, newInstagram: instagram });
   };
 
   if (isLoading) {
@@ -127,6 +134,22 @@ function SettingsPage() {
             />
             <p className="text-xs text-muted-foreground">
               Este endereço será exibido na seção de contato e no rodapé do site.
+            </p>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-border/50">
+            <Label htmlFor="instagram" className="flex items-center gap-1.5">
+              <Instagram className="h-4 w-4 text-pink-500" />
+              Instagram Oficial da Loja
+            </Label>
+            <Input
+              id="instagram"
+              placeholder="Ex: https://www.instagram.com/mrmautomoveis ou @mrmautomoveis"
+              value={instagram}
+              onChange={(e) => setInstagram(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              O link será exibido no topo, na seção de contato e no rodapé do site.
             </p>
           </div>
 

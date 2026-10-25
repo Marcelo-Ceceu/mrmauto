@@ -33,6 +33,7 @@ import {
   ArrowUpDown,
   Clock,
   Play,
+  Instagram,
 } from "lucide-react";
 import { brl } from "@/lib/format";
 import { useState, useMemo } from "react";
@@ -42,7 +43,7 @@ import { Helmet } from "react-helmet";
 import { useFavorites } from "@/hooks/useFavorites";
 import { cn } from "@/lib/utils";
 import { Heart, Trash2 } from "lucide-react";
-import { extractVideoUrl } from "@/lib/video";
+import { extractVideoUrl, parseVideoUrl } from "@/lib/video";
 import {
   Dialog,
   DialogContent,
@@ -70,18 +71,33 @@ function LandingPage() {
   const { data: vehicles, isLoading } = useQuery({
     queryKey: ["public-vehicles"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let res = await supabase
         .from("vehicles")
         .select(
-          "id, brand, model, year, photos, asking_price, status, ad_text, mileage, color, is_published",
+          "id, brand, model, year, photos, asking_price, status, ad_text, mileage, color, is_published, video_url",
         )
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching vehicles:", error);
+      if (res.error && (res.error.code === "42703" || res.error.message.includes("video_url"))) {
+        const fallback = await supabase
+          .from("vehicles")
+          .select(
+            "id, brand, model, year, photos, asking_price, status, ad_text, mileage, color, is_published",
+          )
+          .order("created_at", { ascending: false });
+
+        if (fallback.error) {
+          console.error("Error fetching vehicles:", fallback.error);
+          return [];
+        }
+        return (fallback.data || []) as any[];
+      }
+
+      if (res.error) {
+        console.error("Error fetching vehicles:", res.error);
         return [];
       }
-      return data || [];
+      return (res.data || []) as any[];
     },
   });
 
@@ -96,6 +112,7 @@ function LandingPage() {
       return {
         whatsapp: map["whatsapp_number"] || "5531987984668",
         address: map["store_address"] || "",
+        instagram: map["instagram_url"] || "https://www.instagram.com/mrmautomoveis",
       };
     },
   });
@@ -104,6 +121,8 @@ function LandingPage() {
   const storeAddress =
     storeSettings?.address || "Av. Raja Gabaglia, 2000 - Estoril, Belo Horizonte - MG";
   const whatsappUrl = `https://wa.me/${rawPhone.replace(/\D/g, "")}`;
+  const instagramUrl =
+    storeSettings?.instagram || "https://www.instagram.com/mrmautomoveis";
 
   const formattedPhone = useMemo(() => {
     const digits = rawPhone.replace(/\D/g, "");
@@ -241,6 +260,17 @@ function LandingPage() {
                 <span>{formattedPhone}</span>
               </Button>
             </a>
+            {instagramUrl && (
+              <a
+                href={instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden sm:inline-flex p-2 rounded-xl border border-white/10 hover:bg-white/5 text-muted-foreground hover:text-pink-400 transition-colors"
+                title="Instagram Oficial"
+              >
+                <Instagram className="h-4 w-4" />
+              </a>
+            )}
             <Link to="/login">
               <Button
                 variant="outline"
@@ -778,6 +808,17 @@ function LandingPage() {
               <WhatsAppLogo className="h-4 w-4" />
               <span>{formattedPhone}</span>
             </a>
+            {instagramUrl && (
+              <a
+                href={instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-pink-500/15 border border-pink-500/30 text-pink-400 hover:bg-gradient-to-tr hover:from-amber-500 hover:via-pink-500 hover:to-purple-600 hover:text-white transition-all text-sm font-bold shadow-sm"
+              >
+                <Instagram className="h-4 w-4" />
+                <span className="hidden sm:inline">Instagram</span>
+              </a>
+            )}
           </div>
 
           <div className="text-xs text-muted-foreground">
@@ -799,6 +840,7 @@ type VehicleCardProps = {
     asking_price: number | null;
     status: string;
     ad_text: string | null;
+    video_url?: string | null;
     mileage: number | null;
     color: string | null;
   };
@@ -808,7 +850,7 @@ type VehicleCardProps = {
 function VehicleCard({ vehicle: v, whatsappUrl }: VehicleCardProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const favorited = isFavorite(v.id);
-  const hasVideo = !!extractVideoUrl(v);
+  const videoInfo = parseVideoUrl(extractVideoUrl(v));
 
   return (
     <div className="group relative bg-card/50 border border-white/5 rounded-2xl overflow-hidden hover:border-white/15 hover:shadow-card transition-all duration-300 hover:-translate-y-1 flex flex-col">
@@ -835,9 +877,21 @@ function VehicleCard({ vehicle: v, whatsappUrl }: VehicleCardProps) {
 
           {/* Badges no topo da foto */}
           <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10 pointer-events-none">
-            {hasVideo && (
-              <div className="px-2 py-0.5 rounded-full bg-red-600/95 backdrop-blur-sm text-white text-[10px] font-bold flex items-center gap-1 shadow-sm">
-                <Play className="w-2.5 h-2.5 fill-current" /> Vídeo
+            {videoInfo && (
+              <div
+                className={cn(
+                  "px-2 py-0.5 rounded-full backdrop-blur-sm text-white text-[10px] font-bold flex items-center gap-1 shadow-sm",
+                  videoInfo.type === "instagram"
+                    ? "bg-gradient-to-r from-amber-500 via-pink-500 to-purple-600"
+                    : "bg-red-600/95",
+                )}
+              >
+                {videoInfo.type === "instagram" ? (
+                  <Instagram className="w-2.5 h-2.5" />
+                ) : (
+                  <Play className="w-2.5 h-2.5 fill-current" />
+                )}
+                <span>{videoInfo.type === "instagram" ? "Reels" : "Vídeo"}</span>
               </div>
             )}
             {v.color && (

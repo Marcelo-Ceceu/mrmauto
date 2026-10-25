@@ -424,13 +424,13 @@ export function VehicleForm({
               </div>
               <Input
                 id="vehicle_video_url"
-                placeholder="Cole o link do vídeo (YouTube, YouTube Shorts, Vimeo ou link direto .mp4)"
+                placeholder="Cole o link do vídeo (YouTube, Instagram Reels, Shorts, Vimeo ou link direto .mp4)"
                 value={f.video_url ?? ""}
                 onChange={(e) => update("video_url", e.target.value ? e.target.value.trim() : null)}
                 className="bg-background/60"
               />
               <p className="text-xs text-muted-foreground">
-                Exemplos suportados: <code className="text-primary font-mono text-[11px]">https://www.youtube.com/watch?v=...</code>, <code className="text-primary font-mono text-[11px]">https://youtu.be/...</code> ou Shorts. O vídeo terá um player dedicado na página do veículo.
+                Exemplos suportados: <code className="text-primary font-mono text-[11px]">YouTube (Watch/Shorts)</code>, <code className="text-primary font-mono text-[11px]">Instagram Reels (instagram.com/reel/...)</code> ou <code className="text-primary font-mono text-[11px]">Vimeo</code>.
               </p>
 
               {videoPreview && videoPreview.embedUrl && (
@@ -438,15 +438,22 @@ export function VehicleForm({
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                     <Play className="w-3.5 h-3.5 text-emerald-400" /> Pré-visualização do player:
                   </p>
-                  <div className="aspect-video max-w-lg rounded-xl overflow-hidden border border-white/10 bg-black/60 shadow-elegant">
+                  <div
+                    className={cn(
+                      "rounded-xl overflow-hidden border border-white/10 bg-black/60 shadow-elegant",
+                      videoPreview.type === "instagram"
+                        ? "h-[520px] max-w-[360px] w-full"
+                        : "aspect-video max-w-lg",
+                    )}
+                  >
                     {videoPreview.type === "direct" ? (
                       <video src={videoPreview.embedUrl} controls className="w-full h-full" />
                     ) : (
                       <iframe
                         src={videoPreview.embedUrl}
                         title="Pré-visualização do vídeo"
-                        className="w-full h-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        className="w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
                       />
                     )}

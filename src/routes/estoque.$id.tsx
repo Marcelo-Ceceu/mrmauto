@@ -23,6 +23,7 @@ import {
   Play,
   Video,
   Camera,
+  Instagram,
 } from "lucide-react";
 import { brl } from "@/lib/format";
 import { useState, useEffect } from "react";
@@ -67,7 +68,23 @@ export const Route = createFileRoute("/estoque/$id")({
   component: PublicVehicleDetail,
 });
 
-async function fetchPublicVehicle(id: string) {
+export type PublicVehicle = {
+  id: string;
+  brand: string;
+  model: string;
+  year: number | null;
+  mileage: number | null;
+  color: string | null;
+  fuel: string | null;
+  transmission: string | null;
+  photos: string[] | null;
+  status: string;
+  asking_price: number | null;
+  ad_text: string | null;
+  video_url?: string | null;
+};
+
+async function fetchPublicVehicle(id: string): Promise<PublicVehicle> {
   let res = await supabase
     .from("vehicles")
     .select(
@@ -77,17 +94,19 @@ async function fetchPublicVehicle(id: string) {
     .single();
 
   if (res.error && (res.error.code === "42703" || res.error.message.includes("video_url"))) {
-    res = await supabase
+    const fallback = await supabase
       .from("vehicles")
       .select(
         "id, brand, model, year, mileage, color, fuel, transmission, photos, status, asking_price, ad_text",
       )
       .eq("id", id)
       .single();
+    if (fallback.error) throw fallback.error;
+    return fallback.data as PublicVehicle;
   }
 
   if (res.error) throw res.error;
-  return res.data;
+  return res.data as PublicVehicle;
 }
 
 function PublicVehicleDetail() {
@@ -274,30 +293,54 @@ function PublicVehicleDetail() {
 
             {/* Visualizador Principal (Vídeo ou Foto) */}
             {activeMediaTab === "video" && videoInfo ? (
-              <div className="aspect-[16/10] bg-black rounded-2xl overflow-hidden shadow-elegant border border-white/10 relative">
-                {videoInfo.type === "direct" ? (
-                  <video
-                    src={videoInfo.embedUrl || videoInfo.rawUrl}
-                    controls
-                    className="w-full h-full"
-                    autoPlay
-                  />
-                ) : videoInfo.embedUrl ? (
-                  <iframe
-                    src={videoInfo.embedUrl}
-                    title={`Vídeo de ${vehicle.brand} ${vehicle.model}`}
-                    className="w-full h-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
-                    <Video className="w-12 h-12 text-muted-foreground mb-3" />
-                    <p className="text-sm text-muted-foreground mb-3">Vídeo disponível no link externo:</p>
-                    <a href={videoInfo.rawUrl} target="_blank" rel="noopener noreferrer">
-                      <Button className="bg-red-600 hover:bg-red-700 text-white font-bold">
-                        Assistir no YouTube / Link Externo
-                      </Button>
+              <div className="space-y-3">
+                <div
+                  className={cn(
+                    "bg-black rounded-2xl overflow-hidden shadow-elegant border border-white/10 relative flex items-center justify-center",
+                    videoInfo.type === "instagram"
+                      ? "h-[560px] sm:h-[620px] mx-auto w-full max-w-[400px]"
+                      : "aspect-[16/10] w-full",
+                  )}
+                >
+                  {videoInfo.type === "direct" ? (
+                    <video
+                      src={videoInfo.embedUrl || videoInfo.rawUrl}
+                      controls
+                      className="w-full h-full"
+                      autoPlay
+                    />
+                  ) : videoInfo.embedUrl ? (
+                    <iframe
+                      src={videoInfo.embedUrl}
+                      title={`Vídeo de ${vehicle.brand} ${vehicle.model}`}
+                      className="w-full h-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      scrolling="no"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
+                      <Video className="w-12 h-12 text-muted-foreground mb-3" />
+                      <p className="text-sm text-muted-foreground mb-3">Vídeo disponível no link externo:</p>
+                      <a href={videoInfo.rawUrl} target="_blank" rel="noopener noreferrer">
+                        <Button className="bg-red-600 hover:bg-red-700 text-white font-bold">
+                          Assistir Vídeo
+                        </Button>
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {videoInfo.type === "instagram" && (
+                  <div className="flex justify-center">
+                    <a
+                      href={videoInfo.rawUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-amber-500/20 border border-pink-500/30 text-pink-300 hover:text-white hover:border-pink-500/60 text-xs font-bold transition-all shadow-sm"
+                    >
+                      <Instagram className="w-4 h-4 text-pink-400" />
+                      Ver publicação completa no Instagram
                     </a>
                   </div>
                 )}
@@ -331,7 +374,7 @@ function PublicVehicleDetail() {
             {/* Grade de miniaturas (Fotos + Miniatura de Vídeo) */}
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
               {vehicle.photos &&
-                vehicle.photos.map((photo, i) => (
+                vehicle.photos.map((photo: string, i: number) => (
                   <div
                     key={i}
                     className={cn(
@@ -358,8 +401,10 @@ function PublicVehicleDetail() {
                   className={cn(
                     "aspect-square rounded-lg overflow-hidden cursor-pointer group relative transition-all border flex flex-col items-center justify-center bg-black/70",
                     activeMediaTab === "video"
-                      ? "ring-2 ring-red-500 ring-offset-2 border-transparent"
-                      : "border-red-500/20 hover:border-red-500/50",
+                      ? videoInfo.type === "instagram"
+                        ? "ring-2 ring-pink-500 ring-offset-2 border-transparent"
+                        : "ring-2 ring-red-500 ring-offset-2 border-transparent"
+                      : "border-white/10 hover:border-white/30",
                   )}
                   onClick={() => setActiveMediaTab("video")}
                   title="Assistir ao vídeo"
@@ -372,11 +417,22 @@ function PublicVehicleDetail() {
                     />
                   ) : null}
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40">
-                    <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                      <Play className="w-4 h-4 fill-current ml-0.5" />
+                    <div
+                      className={cn(
+                        "w-8 h-8 rounded-full text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform",
+                        videoInfo.type === "instagram"
+                          ? "bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600"
+                          : "bg-red-600",
+                      )}
+                    >
+                      {videoInfo.type === "instagram" ? (
+                        <Instagram className="w-4 h-4" />
+                      ) : (
+                        <Play className="w-4 h-4 fill-current ml-0.5" />
+                      )}
                     </div>
                     <span className="text-[10px] font-bold text-white uppercase tracking-wider">
-                      Vídeo
+                      {videoInfo.type === "instagram" ? "Reels" : "Vídeo"}
                     </span>
                   </div>
                 </div>

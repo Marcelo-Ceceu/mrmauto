@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -38,6 +39,9 @@ import {
   Check,
   ArrowRight,
   TrendingUp,
+  ClipboardList,
+  UserCheck,
+  CalendarClock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -58,6 +62,15 @@ export interface PostSaleRecord {
   action_taken: string;
   amount_spent: number;
   status: "in_review" | "in_maintenance" | "resolved";
+}
+
+export interface AttendanceRecord {
+  id: string;
+  content: string;
+  created_at: string;
+  user_name: string;
+  next_action?: string;
+  next_action_datetime?: string;
 }
 
 export interface ClientData {
@@ -84,6 +97,7 @@ export interface ClientData {
     state: string;
   };
   post_sale_records: PostSaleRecord[];
+  attendance_records: AttendanceRecord[];
   vehicles?: {
     id: string;
     brand: string;
@@ -137,6 +151,7 @@ function parseLeadToClient(lead: any): ClientData {
     state: "",
   };
   let post_sale_records: PostSaleRecord[] = [];
+  let attendance_records: AttendanceRecord[] = [];
 
   // Tenta parsear JSON se estiver codificado
   if (name.startsWith("{") && name.endsWith("}")) {
@@ -153,6 +168,9 @@ function parseLeadToClient(lead: any): ClientData {
       if (parsed.address) address = { ...address, ...parsed.address };
       if (Array.isArray(parsed.post_sale_records)) {
         post_sale_records = parsed.post_sale_records;
+      }
+      if (Array.isArray(parsed.attendance_records)) {
+        attendance_records = parsed.attendance_records;
       }
     } catch {
       // fallback
@@ -187,6 +205,7 @@ function parseLeadToClient(lead: any): ClientData {
     notes,
     address,
     post_sale_records,
+    attendance_records,
     vehicles: lead.vehicles,
   };
 }
@@ -203,6 +222,7 @@ function serializeClientName(client: Partial<ClientData>): string {
     notes: client.notes || "",
     address: client.address || {},
     post_sale_records: client.post_sale_records || [],
+    attendance_records: client.attendance_records || [],
   };
   return JSON.stringify(payload);
 }
@@ -215,7 +235,13 @@ function ClientsPage() {
   // Modais
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<ClientData | null>(null);
-  const [activeModalTab, setActiveModalTab] = useState<"dados" | "pos_venda">("dados");
+  const [activeModalTab, setActiveModalTab] = useState<"dados" | "atendimentos" | "pos_venda">("dados");
+
+  // Form novo atendimento
+  const [isAddingAttendance, setIsAddingAttendance] = useState(false);
+  const [newAttendanceContent, setNewAttendanceContent] = useState("");
+  const [newAttendanceNextAction, setNewAttendanceNextAction] = useState("");
+  const [newAttendanceNextDatetime, setNewAttendanceNextDatetime] = useState("");
 
   // Form novo cliente
   const [newClientForm, setNewClientForm] = useState({
@@ -481,6 +507,57 @@ function ClientsPage() {
       toast.error(`Erro ao salvar: ${err.message}`);
     },
   });
+
+  // Adicionar atendimento ao histórico
+  const handleAddAttendance = async () => {
+    if (!selectedClient || !newAttendanceContent.trim()) {
+      toast.error("Descreva o atendimento antes de salvar.");
+      return;
+    }
+
+    // Busca nome do usuário logado
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    let userName = user?.email || "Usuário desconhecido";
+    // Tenta buscar o display name do perfil
+    if (user?.id) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (profile?.full_name) userName = profile.full_name;
+    }
+
+    const record: AttendanceRecord = {
+      id: Math.random().toString(36).substring(2, 9),
+      content: newAttendanceContent.trim(),
+      created_at: new Date().toISOString(),
+      user_name: userName,
+      next_action: newAttendanceNextAction.trim() || undefined,
+      next_action_datetime: newAttendanceNextDatetime || undefined,
+    };
+
+    // Insere no início (mais recente primeiro)
+    const updatedRecords = [record, ...(selectedClient.attendance_records || [])];
+    const updatedClient: ClientData = {
+      ...selectedClient,
+      attendance_records: updatedRecords,
+    };
+
+    updateClientDetailsMutation.mutate(updatedClient, {
+      onSuccess: () => {
+        setSelectedClient(updatedClient);
+        setIsAddingAttendance(false);
+        setNewAttendanceContent("");
+        setNewAttendanceNextAction("");
+        setNewAttendanceNextDatetime("");
+        toast.success("Atendimento registrado com sucesso!");
+      },
+    });
+  };
 
   // Adicionar ocorrência de pós-venda
   const handleAddComplaint = async () => {
@@ -1133,7 +1210,7 @@ function ClientsPage() {
             </DialogHeader>
 
             {/* Abas do Modal */}
-            <div className="flex items-center gap-2 border-b border-zinc-800 pb-2 mt-2">
+            <div className="flex items-center gap-2 border-b border-zinc-800 pb-2 mt-2 flex-wrap">
               <button
                 onClick={() => setActiveModalTab("dados")}
                 className={cn(
@@ -1144,6 +1221,23 @@ function ClientsPage() {
                 )}
               >
                 Dados & Compra
+              </button>
+              <button
+                onClick={() => { setActiveModalTab("atendimentos"); setIsAddingAttendance(false); }}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+                  activeModalTab === "atendimentos"
+                    ? "bg-red-600 text-white shadow-md shadow-red-600/25"
+                    : "text-zinc-400 hover:text-white hover:bg-zinc-800/60",
+                )}
+              >
+                <ClipboardList className="h-3.5 w-3.5" />
+                <span>Atendimentos</span>
+                {selectedClient.attendance_records?.length > 0 && (
+                  <span className="bg-zinc-600 text-white text-[10px] px-1.5 rounded-full font-bold ml-1">
+                    {selectedClient.attendance_records.length}
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => setActiveModalTab("pos_venda")}
@@ -1457,7 +1551,184 @@ function ClientsPage() {
               </div>
             )}
 
-            {/* ABA 2: ACOMPANHAMENTO DE PÓS-VENDA (RECLAMAÇÕES & CUSTOS) */}
+            {/* ABA 2: ATENDIMENTOS E HISTÓRICO */}
+            {activeModalTab === "atendimentos" && (
+              <div className="space-y-4 pt-3 text-xs">
+                {/* Cabeçalho da aba */}
+                <div className="bg-[#0e1117] p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+                      Histórico de Atendimentos
+                    </span>
+                    <span className="text-zinc-500 text-[10px]">
+                      {selectedClient.attendance_records?.length || 0} registro(s) — do mais recente ao mais antigo
+                    </span>
+                  </div>
+                  <Button
+                    onClick={() => { setIsAddingAttendance(true); }}
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold h-9 px-3 rounded-lg text-xs gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Adicionar atendimento
+                  </Button>
+                </div>
+
+                {/* Formulário de Novo Atendimento */}
+                {isAddingAttendance && (
+                  <div className="bg-[#181d26] p-4 rounded-xl border border-red-500/30 space-y-3 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                        <ClipboardList className="h-4 w-4 text-red-400" />
+                        Novo Registro de Atendimento
+                      </span>
+                      <button
+                        onClick={() => setIsAddingAttendance(false)}
+                        className="text-zinc-400 hover:text-white"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-zinc-400 font-semibold">Conversa / Resumo do Atendimento *</label>
+                      <Textarea
+                        placeholder="Cole a conversa do WhatsApp ou escreva um resumo do que aconteceu neste atendimento..."
+                        value={newAttendanceContent}
+                        onChange={(e) => setNewAttendanceContent(e.target.value)}
+                        className="bg-[#141820] border-zinc-800 text-white rounded-lg text-xs min-h-[120px] resize-y"
+                        rows={5}
+                      />
+                    </div>
+
+                    <div className="bg-[#0e1117] p-3 rounded-xl border border-zinc-800 space-y-2">
+                      <span className="text-zinc-400 font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                        <CalendarClock className="h-3.5 w-3.5 text-amber-400" />
+                        Próxima Ação / Compromisso (opcional)
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-zinc-400 font-semibold">Descrição do próximo passo</label>
+                          <Input
+                            placeholder="Ex: Cliente virá amanhã às 17h ver o Palio"
+                            value={newAttendanceNextAction}
+                            onChange={(e) => setNewAttendanceNextAction(e.target.value)}
+                            className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-zinc-400 font-semibold">Data e horário previstos</label>
+                          <Input
+                            type="datetime-local"
+                            value={newAttendanceNextDatetime}
+                            onChange={(e) => setNewAttendanceNextDatetime(e.target.value)}
+                            className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button
+                        variant="ghost"
+                        onClick={() => { setIsAddingAttendance(false); setNewAttendanceContent(""); setNewAttendanceNextAction(""); setNewAttendanceNextDatetime(""); }}
+                        className="text-zinc-400 hover:text-white text-xs h-8"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        onClick={handleAddAttendance}
+                        disabled={updateClientDetailsMutation.isPending || !newAttendanceContent.trim()}
+                        className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-8 px-4 rounded-lg"
+                      >
+                        {updateClientDetailsMutation.isPending ? "Salvando..." : "Salvar Atendimento"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista de Atendimentos */}
+                <div className="space-y-2.5">
+                  {!selectedClient.attendance_records || selectedClient.attendance_records.length === 0 ? (
+                    <div className="p-8 text-center bg-[#0e1117] rounded-xl border border-zinc-800/80 text-zinc-500">
+                      <ClipboardList className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
+                      <p className="font-semibold text-zinc-300">Nenhum atendimento registrado ainda</p>
+                      <p className="text-[11px] text-zinc-500 mt-0.5">
+                        Clique em "Adicionar atendimento" para registrar o primeiro contato.
+                      </p>
+                    </div>
+                  ) : (
+                    selectedClient.attendance_records.map((att, idx) => (
+                      <div
+                        key={att.id}
+                        className="p-4 rounded-xl bg-[#0e1117] border border-zinc-800 space-y-2.5"
+                      >
+                        {/* Cabeçalho do card */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-400 text-[10px] font-black shrink-0">
+                              {idx + 1}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <UserCheck className="h-3 w-3 text-zinc-400" />
+                                <span className="text-zinc-300 font-bold text-xs">{att.user_name}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <Clock className="h-3 w-3 text-zinc-500" />
+                                <span className="text-zinc-500 text-[11px]">
+                                  {(() => {
+                                    try {
+                                      return format(new Date(att.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+                                    } catch {
+                                      return att.created_at;
+                                    }
+                                  })()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          {idx === 0 && (
+                            <span className="text-[10px] bg-red-600/20 border border-red-500/30 text-red-400 px-2 py-0.5 rounded-full font-bold shrink-0">
+                              Mais recente
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Conteúdo do atendimento */}
+                        <div className="bg-[#141820] rounded-lg p-3 border border-zinc-800/60">
+                          <p className="text-zinc-200 text-xs leading-relaxed whitespace-pre-wrap">{att.content}</p>
+                        </div>
+
+                        {/* Próxima ação, se houver */}
+                        {(att.next_action || att.next_action_datetime) && (
+                          <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/25 rounded-lg p-2.5">
+                            <CalendarClock className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+                            <div>
+                              <span className="text-amber-400 font-bold text-[10px] uppercase tracking-wider block">Próxima Ação</span>
+                              {att.next_action && <p className="text-zinc-200 text-xs mt-0.5">{att.next_action}</p>}
+                              {att.next_action_datetime && (
+                                <p className="text-amber-300/80 text-[11px] mt-0.5 flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {(() => {
+                                    try {
+                                      return format(new Date(att.next_action_datetime), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+                                    } catch {
+                                      return att.next_action_datetime;
+                                    }
+                                  })()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ABA 3: ACOMPANHAMENTO DE PÓS-VENDA (RECLAMAÇÕES & CUSTOS) */}
             {activeModalTab === "pos_venda" && (
               <div className="space-y-4 pt-3 text-xs">
                 {/* Totalizador de Custos de Pós-Venda */}

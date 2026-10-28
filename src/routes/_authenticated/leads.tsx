@@ -1551,382 +1551,322 @@ function ClientsPage() {
               </div>
             )}
 
-            {/* ABA 2: ATENDIMENTOS E HISTÓRICO */}
-            {activeModalTab === "atendimentos" && (
-              <div className="space-y-4 pt-3 text-xs">
-                {/* Cabeçalho da aba */}
-                <div className="bg-[#0e1117] p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
-                      Histórico de Atendimentos
-                    </span>
-                    <span className="text-zinc-500 text-[10px]">
-                      {selectedClient.attendance_records?.length || 0} registro(s) — do mais recente ao mais antigo
-                    </span>
-                  </div>
-                  <Button
-                    onClick={() => { setIsAddingAttendance(true); }}
-                    className="bg-red-600 hover:bg-red-700 text-white font-bold h-9 px-3 rounded-lg text-xs gap-1.5"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Adicionar atendimento
-                  </Button>
-                </div>
+            {/* ABA 2: HISTÓRICO COMPLETO (ATENDIMENTOS + PÓS-VENDA) */}
+            {activeModalTab === "atendimentos" && (() => {
+              // Mescla atendimentos e pós-venda em uma linha do tempo única
+              type TimelineItem =
+                | { kind: "attendance"; data: AttendanceRecord; sortKey: string }
+                | { kind: "postsale"; data: PostSaleRecord; sortKey: string };
 
-                {/* Formulário de Novo Atendimento */}
-                {isAddingAttendance && (
-                  <div className="bg-[#181d26] p-4 rounded-xl border border-red-500/30 space-y-3 animate-in fade-in">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-white text-xs flex items-center gap-1.5">
-                        <ClipboardList className="h-4 w-4 text-red-400" />
-                        Novo Registro de Atendimento
-                      </span>
-                      <button
-                        onClick={() => setIsAddingAttendance(false)}
-                        className="text-zinc-400 hover:text-white"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
+              const timeline: TimelineItem[] = [
+                ...(selectedClient.attendance_records || []).map((a) => ({
+                  kind: "attendance" as const,
+                  data: a,
+                  sortKey: a.created_at,
+                })),
+                ...(selectedClient.post_sale_records || []).map((p) => ({
+                  kind: "postsale" as const,
+                  data: p,
+                  sortKey: p.date,
+                })),
+              ].sort((a, b) => (a.sortKey < b.sortKey ? 1 : -1));
 
-                    <div className="space-y-1">
-                      <label className="text-zinc-400 font-semibold">Conversa / Resumo do Atendimento *</label>
-                      <Textarea
-                        placeholder="Cole a conversa do WhatsApp ou escreva um resumo do que aconteceu neste atendimento..."
-                        value={newAttendanceContent}
-                        onChange={(e) => setNewAttendanceContent(e.target.value)}
-                        className="bg-[#141820] border-zinc-800 text-white rounded-lg text-xs min-h-[120px] resize-y"
-                        rows={5}
-                      />
-                    </div>
+              const totalPostSale = (selectedClient.post_sale_records || []).reduce(
+                (s, r) => s + Number(r.amount_spent || 0), 0
+              );
 
-                    <div className="bg-[#0e1117] p-3 rounded-xl border border-zinc-800 space-y-2">
-                      <span className="text-zinc-400 font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                        <CalendarClock className="h-3.5 w-3.5 text-amber-400" />
-                        Próxima Ação / Compromisso (opcional)
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-zinc-400 font-semibold">Descrição do próximo passo</label>
-                          <Input
-                            placeholder="Ex: Cliente virá amanhã às 17h ver o Palio"
-                            value={newAttendanceNextAction}
-                            onChange={(e) => setNewAttendanceNextAction(e.target.value)}
-                            className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-zinc-400 font-semibold">Data e horário previstos</label>
-                          <Input
-                            type="datetime-local"
-                            value={newAttendanceNextDatetime}
-                            onChange={(e) => setNewAttendanceNextDatetime(e.target.value)}
-                            className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-1">
-                      <Button
-                        variant="ghost"
-                        onClick={() => { setIsAddingAttendance(false); setNewAttendanceContent(""); setNewAttendanceNextAction(""); setNewAttendanceNextDatetime(""); }}
-                        className="text-zinc-400 hover:text-white text-xs h-8"
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        onClick={handleAddAttendance}
-                        disabled={updateClientDetailsMutation.isPending || !newAttendanceContent.trim()}
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-8 px-4 rounded-lg"
-                      >
-                        {updateClientDetailsMutation.isPending ? "Salvando..." : "Salvar Atendimento"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Lista de Atendimentos */}
-                <div className="space-y-2.5">
-                  {!selectedClient.attendance_records || selectedClient.attendance_records.length === 0 ? (
-                    <div className="p-8 text-center bg-[#0e1117] rounded-xl border border-zinc-800/80 text-zinc-500">
-                      <ClipboardList className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
-                      <p className="font-semibold text-zinc-300">Nenhum atendimento registrado ainda</p>
-                      <p className="text-[11px] text-zinc-500 mt-0.5">
-                        Clique em "Adicionar atendimento" para registrar o primeiro contato.
-                      </p>
-                    </div>
-                  ) : (
-                    selectedClient.attendance_records.map((att, idx) => (
-                      <div
-                        key={att.id}
-                        className="p-4 rounded-xl bg-[#0e1117] border border-zinc-800 space-y-2.5"
-                      >
-                        {/* Cabeçalho do card */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-full bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-400 text-[10px] font-black shrink-0">
-                              {idx + 1}
-                            </span>
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <UserCheck className="h-3 w-3 text-zinc-400" />
-                                <span className="text-zinc-300 font-bold text-xs">{att.user_name}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <Clock className="h-3 w-3 text-zinc-500" />
-                                <span className="text-zinc-500 text-[11px]">
-                                  {(() => {
-                                    try {
-                                      return format(new Date(att.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
-                                    } catch {
-                                      return att.created_at;
-                                    }
-                                  })()}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          {idx === 0 && (
-                            <span className="text-[10px] bg-red-600/20 border border-red-500/30 text-red-400 px-2 py-0.5 rounded-full font-bold shrink-0">
-                              Mais recente
-                            </span>
+              return (
+                <div className="space-y-4 pt-3 text-xs">
+                  {/* Cabeçalho com contadores e botões */}
+                  <div className="bg-[#0e1117] p-4 rounded-xl border border-zinc-800">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+                          Histórico Completo do Cliente
+                        </span>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-zinc-500 text-[10px] flex items-center gap-1">
+                            <ClipboardList className="h-3 w-3 text-zinc-400" />
+                            {selectedClient.attendance_records?.length || 0} atendimento(s)
+                          </span>
+                          <span className="text-zinc-600">·</span>
+                          <span className="text-zinc-500 text-[10px] flex items-center gap-1">
+                            <Wrench className="h-3 w-3 text-red-400" />
+                            {selectedClient.post_sale_records?.length || 0} pós-venda
+                          </span>
+                          {totalPostSale > 0 && (
+                            <>
+                              <span className="text-zinc-600">·</span>
+                              <span className="text-red-400 text-[10px] font-bold">
+                                Gasto pós-venda: {brl(totalPostSale)}
+                              </span>
+                            </>
                           )}
                         </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          onClick={() => { setIsAddingAttendance(true); setIsAddingComplaint(false); }}
+                          className="bg-zinc-700 hover:bg-zinc-600 text-white font-bold h-8 px-3 rounded-lg text-xs gap-1.5"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Atendimento
+                        </Button>
+                        <Button
+                          onClick={() => { setIsAddingComplaint(true); setIsAddingAttendance(false); }}
+                          className="bg-red-600 hover:bg-red-700 text-white font-bold h-8 px-3 rounded-lg text-xs gap-1.5"
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          Pós-Venda
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
 
-                        {/* Conteúdo do atendimento */}
-                        <div className="bg-[#141820] rounded-lg p-3 border border-zinc-800/60">
-                          <p className="text-zinc-200 text-xs leading-relaxed whitespace-pre-wrap">{att.content}</p>
+                  {/* Formulário de Novo Atendimento */}
+                  {isAddingAttendance && (
+                    <div className="bg-[#181d26] p-4 rounded-xl border border-zinc-600/40 space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                          <ClipboardList className="h-4 w-4 text-zinc-300" />
+                          Novo Registro de Atendimento
+                        </span>
+                        <button onClick={() => setIsAddingAttendance(false)} className="text-zinc-400 hover:text-white">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-zinc-400 font-semibold">Conversa / Resumo do Atendimento *</label>
+                        <Textarea
+                          placeholder="Cole a conversa do WhatsApp ou escreva um resumo do que aconteceu neste atendimento..."
+                          value={newAttendanceContent}
+                          onChange={(e) => setNewAttendanceContent(e.target.value)}
+                          className="bg-[#141820] border-zinc-800 text-white rounded-lg text-xs min-h-[120px] resize-y"
+                          rows={5}
+                        />
+                      </div>
+                      <div className="bg-[#0e1117] p-3 rounded-xl border border-zinc-800 space-y-2">
+                        <span className="text-zinc-400 font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                          <CalendarClock className="h-3.5 w-3.5 text-amber-400" />
+                          Próxima Ação / Compromisso (opcional)
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-zinc-400 font-semibold">Descrição do próximo passo</label>
+                            <Input
+                              placeholder="Ex: Cliente virá amanhã às 17h ver o Palio"
+                              value={newAttendanceNextAction}
+                              onChange={(e) => setNewAttendanceNextAction(e.target.value)}
+                              className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-zinc-400 font-semibold">Data e horário previstos</label>
+                            <Input
+                              type="datetime-local"
+                              value={newAttendanceNextDatetime}
+                              onChange={(e) => setNewAttendanceNextDatetime(e.target.value)}
+                              className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"
+                            />
+                          </div>
                         </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button variant="ghost" onClick={() => { setIsAddingAttendance(false); setNewAttendanceContent(""); setNewAttendanceNextAction(""); setNewAttendanceNextDatetime(""); }} className="text-zinc-400 hover:text-white text-xs h-8">Cancelar</Button>
+                        <Button onClick={handleAddAttendance} disabled={updateClientDetailsMutation.isPending || !newAttendanceContent.trim()} className="bg-zinc-700 hover:bg-zinc-600 text-white font-bold text-xs h-8 px-4 rounded-lg">
+                          {updateClientDetailsMutation.isPending ? "Salvando..." : "Salvar Atendimento"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
-                        {/* Próxima ação, se houver */}
-                        {(att.next_action || att.next_action_datetime) && (
-                          <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/25 rounded-lg p-2.5">
-                            <CalendarClock className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
-                            <div>
-                              <span className="text-amber-400 font-bold text-[10px] uppercase tracking-wider block">Próxima Ação</span>
-                              {att.next_action && <p className="text-zinc-200 text-xs mt-0.5">{att.next_action}</p>}
-                              {att.next_action_datetime && (
-                                <p className="text-amber-300/80 text-[11px] mt-0.5 flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {(() => {
-                                    try {
-                                      return format(new Date(att.next_action_datetime), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
-                                    } catch {
-                                      return att.next_action_datetime;
-                                    }
-                                  })()}
-                                </p>
+                  {/* Formulário de Nova Ocorrência Pós-Venda (inline) */}
+                  {isAddingComplaint && (
+                    <div className="bg-[#181d26] p-4 rounded-xl border border-red-500/30 space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                          <AlertTriangle className="h-4 w-4 text-amber-400" />
+                          Nova Ocorrência de Pós-Venda
+                        </span>
+                        <button onClick={() => setIsAddingComplaint(false)} className="text-zinc-400 hover:text-white">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-zinc-400 font-semibold">Data do Relato</label>
+                          <Input type="date" value={newComplaintForm.date} onChange={(e) => setNewComplaintForm((p) => ({ ...p, date: e.target.value }))} className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-zinc-400 font-semibold">Valor Gasto (R$)</label>
+                          <Input type="number" placeholder="Ex: 350.00" value={newComplaintForm.amount_spent} onChange={(e) => setNewComplaintForm((p) => ({ ...p, amount_spent: e.target.value }))} className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-zinc-400 font-semibold">Status do Reparo</label>
+                          <Select value={newComplaintForm.status} onValueChange={(val: any) => setNewComplaintForm((p) => ({ ...p, status: val }))}>
+                            <SelectTrigger className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent className="bg-[#141820] border-zinc-800 text-white z-50">
+                              <SelectItem value="in_review">Em Análise</SelectItem>
+                              <SelectItem value="in_maintenance">Em Manutenção</SelectItem>
+                              <SelectItem value="resolved">Resolvido</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-zinc-400 font-semibold">Reclamação do Cliente</label>
+                        <Input placeholder="Ex: Ar-condicionado não está refrigerando" value={newComplaintForm.complaint} onChange={(e) => setNewComplaintForm((p) => ({ ...p, complaint: e.target.value }))} className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-zinc-400 font-semibold">O que foi feito / Solução</label>
+                        <Input placeholder="Ex: Carga de gás e troca do filtro" value={newComplaintForm.action_taken} onChange={(e) => setNewComplaintForm((p) => ({ ...p, action_taken: e.target.value }))} className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs" />
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button variant="ghost" onClick={() => setIsAddingComplaint(false)} className="text-zinc-400 hover:text-white text-xs h-8">Cancelar</Button>
+                        <Button onClick={handleAddComplaint} className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-8 px-4 rounded-lg">Salvar Ocorrência</Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Linha do tempo unificada */}
+                  <div className="space-y-2.5">
+                    {timeline.length === 0 ? (
+                      <div className="p-8 text-center bg-[#0e1117] rounded-xl border border-zinc-800/80">
+                        <ClipboardList className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
+                        <p className="font-semibold text-zinc-300">Nenhum registro ainda</p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">
+                          Use os botões acima para registrar atendimentos ou ocorrências de pós-venda.
+                        </p>
+                      </div>
+                    ) : (
+                      timeline.map((item, idx) => {
+                        if (item.kind === "attendance") {
+                          const att = item.data;
+                          return (
+                            <div key={`att-${att.id}`} className="p-4 rounded-xl bg-[#0e1117] border border-zinc-800 space-y-2.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-6 h-6 rounded-full bg-zinc-700/60 border border-zinc-600/60 flex items-center justify-center text-zinc-300 text-[10px] font-black shrink-0">
+                                    <ClipboardList className="h-3 w-3" />
+                                  </span>
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <UserCheck className="h-3 w-3 text-zinc-400" />
+                                      <span className="text-zinc-300 font-bold text-xs">{att.user_name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <Clock className="h-3 w-3 text-zinc-500" />
+                                      <span className="text-zinc-500 text-[11px]">
+                                        {(() => { try { return format(new Date(att.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }); } catch { return att.created_at; } })()}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {idx === 0 && <span className="text-[10px] bg-zinc-700/50 border border-zinc-600/50 text-zinc-300 px-2 py-0.5 rounded-full font-bold shrink-0">Mais recente</span>}
+                                  <span className="text-[10px] bg-zinc-700/40 border border-zinc-600/40 text-zinc-400 px-2 py-0.5 rounded-full font-bold shrink-0">Atendimento</span>
+                                </div>
+                              </div>
+                              <div className="bg-[#141820] rounded-lg p-3 border border-zinc-800/60">
+                                <p className="text-zinc-200 text-xs leading-relaxed whitespace-pre-wrap">{att.content}</p>
+                              </div>
+                              {(att.next_action || att.next_action_datetime) && (
+                                <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/25 rounded-lg p-2.5">
+                                  <CalendarClock className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+                                  <div>
+                                    <span className="text-amber-400 font-bold text-[10px] uppercase tracking-wider block">Próxima Ação</span>
+                                    {att.next_action && <p className="text-zinc-200 text-xs mt-0.5">{att.next_action}</p>}
+                                    {att.next_action_datetime && (
+                                      <p className="text-amber-300/80 text-[11px] mt-0.5 flex items-center gap-1">
+                                        <Calendar className="h-3 w-3" />
+                                        {(() => { try { return format(new Date(att.next_action_datetime), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }); } catch { return att.next_action_datetime; } })()}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
+                          );
+                        } else {
+                          const rec = item.data;
+                          return (
+                            <div key={`ps-${rec.id}`} className="p-4 rounded-xl bg-[#0e1117] border border-red-900/30 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-6 h-6 rounded-full bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-400 text-[10px] font-black shrink-0">
+                                    <Wrench className="h-3 w-3" />
+                                  </span>
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <Clock className="h-3 w-3 text-zinc-500" />
+                                      <span className="text-zinc-500 text-[11px]">{rec.date}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {idx === 0 && <span className="text-[10px] bg-zinc-700/50 border border-zinc-600/50 text-zinc-300 px-2 py-0.5 rounded-full font-bold shrink-0">Mais recente</span>}
+                                  <span className={cn(
+                                    "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                                    rec.status === "resolved" && "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+                                    rec.status === "in_maintenance" && "bg-amber-500/15 text-amber-400 border-amber-500/30",
+                                    rec.status === "in_review" && "bg-blue-500/15 text-blue-400 border-blue-500/30",
+                                  )}>
+                                    {rec.status === "resolved" ? "Resolvido" : rec.status === "in_maintenance" ? "Em Manutenção" : "Em Análise"}
+                                  </span>
+                                  <span className="text-[10px] bg-red-900/30 border border-red-700/40 text-red-400 px-2 py-0.5 rounded-full font-bold shrink-0">Pós-Venda</span>
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <div>
+                                  <span className="text-zinc-500 text-[10px] uppercase font-bold">Reclamação:</span>
+                                  <p className="text-zinc-200 text-xs font-semibold mt-0.5">{rec.complaint}</p>
+                                </div>
+                                {rec.action_taken && (
+                                  <div>
+                                    <span className="text-zinc-500 text-[10px] uppercase font-bold">O que foi feito:</span>
+                                    <p className="text-emerald-400/90 text-xs mt-0.5">{rec.action_taken}</p>
+                                  </div>
+                                )}
+                                {Number(rec.amount_spent) > 0 && (
+                                  <div className="flex items-center gap-1.5 pt-0.5">
+                                    <DollarSign className="h-3 w-3 text-red-400" />
+                                    <span className="text-xs text-zinc-400">Gasto: <strong className="text-red-400">{brl(Number(rec.amount_spent))}</strong></span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
-            {/* ABA 3: ACOMPANHAMENTO DE PÓS-VENDA (RECLAMAÇÕES & CUSTOS) */}
+            {/* ABA 3: PÓS-VENDA — resumo financeiro (acesso alternativo) */}
             {activeModalTab === "pos_venda" && (
               <div className="space-y-4 pt-3 text-xs">
-                {/* Totalizador de Custos de Pós-Venda */}
-                <div className="bg-[#0e1117] p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
-                      Total Gasto em Pós-Venda
-                    </span>
-                    <span className="text-xl font-black text-red-500 font-display">
-                      {brl(
-                        (selectedClient.post_sale_records || []).reduce(
-                          (a, b) => a + Number(b.amount_spent || 0),
-                          0,
-                        ),
-                      )}
-                    </span>
-                  </div>
-
+                <div className="bg-[#0e1117] p-5 rounded-xl border border-zinc-800 text-center">
+                  <ShieldCheck className="h-8 w-8 text-emerald-500/40 mx-auto mb-2" />
+                  <p className="font-semibold text-zinc-200 text-sm">Histórico unificado disponível na aba <span className="text-red-400">Histórico</span></p>
+                  <p className="text-[11px] text-zinc-500 mt-1 max-w-sm mx-auto">
+                    Todos os atendimentos e ocorrências de pós-venda agora aparecem juntos, em ordem cronológica, na aba Histórico.
+                  </p>
                   <Button
-                    onClick={() => setIsAddingComplaint(true)}
-                    className="bg-red-600 hover:bg-red-700 text-white font-bold h-9 px-3 rounded-lg text-xs gap-1.5"
+                    onClick={() => { setActiveModalTab("atendimentos"); setIsAddingComplaint(true); }}
+                    className="mt-4 bg-red-600 hover:bg-red-700 text-white font-bold h-9 px-4 rounded-lg text-xs gap-1.5"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Registrar Ocorrência
+                    Registrar Ocorrência de Pós-Venda
                   </Button>
                 </div>
-
-                {/* Formulário de Nova Ocorrência */}
-                {isAddingComplaint && (
-                  <div className="bg-[#181d26] p-4 rounded-xl border border-red-500/30 space-y-3 animate-in fade-in">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-white text-xs flex items-center gap-1.5">
-                        <AlertTriangle className="h-4 w-4 text-amber-400" />
-                        Nova Reclamação / Ocorrência de Pós-Venda
-                      </span>
-                      <button
-                        onClick={() => setIsAddingComplaint(false)}
-                        className="text-zinc-400 hover:text-white"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-zinc-400 font-semibold">Data do Relato</label>
-                        <Input
-                          type="date"
-                          value={newComplaintForm.date}
-                          onChange={(e) =>
-                            setNewComplaintForm((p) => ({ ...p, date: e.target.value }))
-                          }
-                          className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-zinc-400 font-semibold">Valor Gasto na Loja (R$)</label>
-                        <Input
-                          type="number"
-                          placeholder="Ex: 350.00"
-                          value={newComplaintForm.amount_spent}
-                          onChange={(e) =>
-                            setNewComplaintForm((p) => ({ ...p, amount_spent: e.target.value }))
-                          }
-                          className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-zinc-400 font-semibold">Status do Reparo</label>
-                        <Select
-                          value={newComplaintForm.status}
-                          onValueChange={(val: any) =>
-                            setNewComplaintForm((p) => ({ ...p, status: val }))
-                          }
-                        >
-                          <SelectTrigger className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#141820] border-zinc-800 text-white z-50">
-                            <SelectItem value="in_review">Em Análise</SelectItem>
-                            <SelectItem value="in_maintenance">Em Manutenção</SelectItem>
-                            <SelectItem value="resolved">Resolvido</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-zinc-400 font-semibold">Reclamação do Cliente (Problema)</label>
-                      <Input
-                        placeholder="Ex: Ar-condicionado não está refrigerando adequadamente"
-                        value={newComplaintForm.complaint}
-                        onChange={(e) =>
-                          setNewComplaintForm((p) => ({ ...p, complaint: e.target.value }))
-                        }
-                        className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-zinc-400 font-semibold">O que foi feito / Solução Aplicada</label>
-                      <Input
-                        placeholder="Ex: Carga de gás e substituição do filtro na oficina conveniada"
-                        value={newComplaintForm.action_taken}
-                        onChange={(e) =>
-                          setNewComplaintForm((p) => ({ ...p, action_taken: e.target.value }))
-                        }
-                        className="bg-[#141820] border-zinc-800 text-white h-9 rounded-lg text-xs"
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-2">
-                      <Button
-                        variant="ghost"
-                        onClick={() => setIsAddingComplaint(false)}
-                        className="text-zinc-400 hover:text-white text-xs h-8"
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        onClick={handleAddComplaint}
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-8 px-4 rounded-lg"
-                      >
-                        Salvar Ocorrência
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Lista de Ocorrências Existentes */}
-                <div className="space-y-2">
-                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
-                    Histórico de Reclamações e Atendimentos
+                {/* Totalizador financeiro */}
+                <div className="bg-[#0e1117] p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Total Gasto em Pós-Venda</span>
+                  <span className="text-xl font-black text-red-500 font-display">
+                    {brl((selectedClient.post_sale_records || []).reduce((a, b) => a + Number(b.amount_spent || 0), 0))}
                   </span>
-
-                  {!selectedClient.post_sale_records || selectedClient.post_sale_records.length === 0 ? (
-                    <div className="p-8 text-center bg-[#0e1117] rounded-xl border border-zinc-800/80 text-zinc-500">
-                      <ShieldCheck className="h-8 w-8 text-emerald-500/40 mx-auto mb-2" />
-                      <p className="font-semibold text-zinc-300">Nenhuma reclamação registrada</p>
-                      <p className="text-[11px] text-zinc-500 mt-0.5">
-                        Cliente sem ocorrências de pós-venda até o momento.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5">
-                      {selectedClient.post_sale_records.map((rec) => (
-                        <div
-                          key={rec.id}
-                          className="p-3.5 rounded-xl bg-[#0e1117] border border-zinc-800 space-y-2"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] text-zinc-400 font-medium">
-                                Data: {rec.date}
-                              </span>
-                              <span
-                                className={cn(
-                                  "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                                  rec.status === "resolved" &&
-                                    "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-                                  rec.status === "in_maintenance" &&
-                                    "bg-amber-500/15 text-amber-400 border-amber-500/30",
-                                  rec.status === "in_review" &&
-                                    "bg-blue-500/15 text-blue-400 border-blue-500/30",
-                                )}
-                              >
-                                {rec.status === "resolved"
-                                  ? "Resolvido"
-                                  : rec.status === "in_maintenance"
-                                    ? "Em Manutenção"
-                                    : "Em Análise"}
-                              </span>
-                            </div>
-
-                            <span className="font-bold text-white text-xs">
-                              Gasto: <span className="text-red-400">{brl(rec.amount_spent)}</span>
-                            </span>
-                          </div>
-
-                          <div>
-                            <span className="text-zinc-500 text-[10px] uppercase font-bold block">
-                              Reclamação:
-                            </span>
-                            <p className="text-zinc-200 text-xs font-semibold">{rec.complaint}</p>
-                          </div>
-
-                          {rec.action_taken && (
-                            <div>
-                              <span className="text-zinc-500 text-[10px] uppercase font-bold block">
-                                O que foi feito:
-                              </span>
-                              <p className="text-emerald-400/90 text-xs">{rec.action_taken}</p>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
